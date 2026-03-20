@@ -7,7 +7,7 @@ import sendEmail from '../utils/emailService';
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_super_secret_jwt_key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 const JWT_EXPIRES_IN = '7d';
 
 const generateToken = (id: string) => {

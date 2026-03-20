@@ -1,9 +1,28 @@
 import React, { useState } from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Check, Zap, Shield, Globe, MessageSquare, Video, Cpu, Users } from 'lucide-react';
 
 const ServicePackage: React.FC = () => {
   const [planType, setPlanType] = useState<'individual' | 'business'>('individual');
+  const navigate = useNavigate();
+
+  const handlePurchase = (pkg: any) => {
+    console.log('Purchase clicked for pkg:', pkg.name);
+    if (pkg.price === 'Liên hệ') {
+      window.location.href = 'mailto:contact@signify.ai';
+      return;
+    }
+    
+    // Create a serializable version of the plan by removing JSX icons
+    const serializablePlan = {
+      ...pkg,
+      features: pkg.features.map((f: any) => ({ text: f.text }))
+    };
+
+    console.log('Navigating to /payment with serializable state:', serializablePlan.name);
+    navigate('/payment', { state: { plan: serializablePlan } });
+  };
 
   const individualPackages = [
     {
@@ -203,6 +222,7 @@ const ServicePackage: React.FC = () => {
               </div>
 
               <button
+                onClick={() => handlePurchase(pkg)}
                 className={`w-full py-4 rounded-2xl font-semibold transition-all duration-200 ${
                   pkg.isRecommended 
                     ? 'bg-[#4F46E5] hover:bg-[#7C3AED] text-white shadow-lg shadow-[#4F46E5]/20' 

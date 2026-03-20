@@ -5,10 +5,9 @@ import { RouterProvider } from 'react-router-dom';
 import { store } from './redux/store';
 import { router } from './router';
 import { GoogleOAuthProvider } from '@react-oauth/google';
-import './global.css';
-
-const GOOGLE_CLIENT_ID = "803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com";
 import './index.css';
+const GOOGLE_CLIENT_ID = "803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com";
+
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
