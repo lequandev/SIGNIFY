@@ -34,6 +34,9 @@ function App() {
             </Link>
             
             <div className="flex items-center gap-6">
+              <Link to="/packages" className="hidden md:block text-sm font-bold text-gray-400 hover:text-white transition-colors mr-2">
+                Gói Dịch Vụ
+              </Link>
               {isAuthenticated ? (
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/20">

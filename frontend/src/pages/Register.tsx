@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { GoogleLogin } from '@react-oauth/google';
 import api from '../lib/api';
 import { setLogin } from '../features/authSlice';
-import { Mail, Lock, User, ArrowRight, Youtube, CheckCircle } from 'lucide-react';
+import { Users, Mail, Lock, User, ArrowRight, Github, Chrome, CheckCircle } from 'lucide-react';
 
 const Register: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -55,139 +56,157 @@ const Register: React.FC = () => {
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0a0c1a] bg-grid p-6 overflow-hidden relative">
-        <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] bg-[#3B82F6]/25 blur-[130px] rounded-full animate-pulse" />
-        <div className="absolute bottom-[-10%] left-[-10%] w-[45%] h-[45%] bg-[#A855F7]/25 blur-[130px] rounded-full animate-pulse delay-1000" />
-
-        <div className="w-full max-w-[480px] glass rounded-[2.5rem] p-10 shadow-2xl animate-slow-fade relative z-10 text-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans selection:bg-[#2563EB] selection:text-white">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 p-10 text-center"
+        >
           <div className="flex justify-center mb-10">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center border border-green-500/30">
-              <CheckCircle className="w-12 h-12 text-green-500" />
+            <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center border-2 border-emerald-100 shadow-inner">
+              <CheckCircle className="w-12 h-12 text-emerald-500" />
             </div>
           </div>
-          <h1 className="text-4xl font-black text-white mb-6">Verify your email</h1>
-          <p className="text-gray-400 font-medium leading-relaxed mb-10">
-            We've sent a verification link to <span className="text-white font-bold">{email}</span>. 
-            Please check your inbox and click the link to activate your account.
+          <h1 className="text-3xl font-black text-slate-900 mb-6 tracking-tight">Xác minh Email</h1>
+          <p className="text-slate-500 font-medium leading-relaxed mb-10 px-4">
+            Chúng tôi đã gửi một liên kết xác minh đến <span className="text-[#2563EB] font-black">{email}</span>. 
+            Vui lòng kiểm tra hộp thư của bạn để kích hoạt tài khoản.
           </p>
           <Link
             to="/login"
-            className="inline-flex items-center justify-center gap-2 w-full bg-gradient-to-r from-[#3B82F6] to-[#6366F1] text-white font-bold py-4 rounded-2xl hover:brightness-110 shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-3 w-full bg-[#2563EB] text-white font-black py-5 rounded-2xl hover:bg-[#4F46E5] shadow-2xl shadow-[#2563EB]/30 transition-all active:scale-[0.98] group"
           >
-            Go to Login
-            <ArrowRight className="w-5 h-5" />
+            Đến trang đăng nhập
+            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
           </Link>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0c1a] bg-grid p-6 overflow-hidden relative">
-      {/* Dynamic Background Elements */}
-      <div className="absolute top-[-10%] right-[-10%] w-[45%] h-[45%] bg-[#3B82F6]/25 blur-[130px] rounded-full animate-pulse" />
-      <div className="absolute bottom-[-10%] left-[-10%] w-[45%] h-[45%] bg-[#A855F7]/25 blur-[130px] rounded-full animate-pulse delay-1000" />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans selection:bg-[#2563EB] selection:text-white">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100"
+      >
+        <div className="p-10">
+          <div className="flex flex-col items-center mb-10">
+            <Link to="/" className="flex items-center gap-2 mb-6 group">
+              <div className="w-12 h-12 bg-[#2563EB] rounded-2xl flex items-center justify-center shadow-xl shadow-[#2563EB]/20 group-hover:scale-105 transition-transform">
+                <img 
+                  src="/logo_removebg.png" 
+                  alt="Signify" 
+                  className="w-8 h-8 object-contain brightness-0 invert" 
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.parentElement?.insertAdjacentHTML('beforeend', '<div class="text-white font-black text-xl">S</div>');
+                  }}
+                />
+              </div>
+              <span className="text-3xl font-black tracking-tight text-slate-900 uppercase">SIGNIFY</span>
+            </Link>
+            <h1 className="text-2xl font-black text-slate-900 mb-2">Create Account</h1>
+            <p className="text-slate-500 text-sm font-medium">Join the Signify community today</p>
+          </div>
 
-      <div className="w-full max-w-[480px] glass rounded-[2.5rem] p-10 shadow-2xl animate-slow-fade relative z-10 my-8">
-        <div className="text-center mb-10">
-          <Link to="/" className="inline-flex flex-col items-center group mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-[#A855F7] to-[#6366F1] rounded-2xl mb-3 shadow-lg shadow-purple-500/30 -rotate-3 group-hover:rotate-0 transition-transform duration-500">
-              <Youtube className="text-white w-8 h-8" />
+          {error && (
+            <div className="bg-red-50 border border-red-100 text-red-500 p-4 rounded-2xl mb-8 text-sm font-bold text-center animate-pulse">
+              {error}
             </div>
-            <span className="text-xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 uppercase opacity-70 group-hover:opacity-100 transition-opacity">
-              SIGNIFY
-            </span>
-          </Link>
-          <h1 className="text-4xl font-black text-white mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400">
-            Join Signify
-          </h1>
-          <p className="text-gray-400 font-medium">Start your journey to accessible content</p>
-        </div>
+          )}
 
-        {error && (
-          <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-4 rounded-2xl mb-8 text-sm font-medium flex items-center justify-center">
-            {error}
-          </div>
-        )}
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Full Name</label>
+              <div className="relative group">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="John Doe"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-900 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="group relative">
-            <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#3B82F6] w-5 h-5 transition-colors" />
-            <input
-              type="text"
-              placeholder="Full Name"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl px-12 py-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/50 focus:border-[#3B82F6]/50 transition-all font-medium"
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Email Address</label>
+              <div className="relative group">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@example.com"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-900 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-          <div className="group relative">
-            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#6366F1] w-5 h-5 transition-colors" />
-            <input
-              type="email"
-              placeholder="Email address"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl px-12 py-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#6366F1]/50 focus:border-[#6366F1]/50 transition-all font-medium"
-              required
-            />
-          </div>
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 ml-1">Password</label>
+              <div className="relative group">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-12 pr-4 text-slate-900 font-medium placeholder:text-slate-300 focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
+                  required
+                />
+              </div>
+            </div>
 
-          <div className="group relative">
-            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-[#A855F7] w-5 h-5 transition-colors" />
-            <input
-              type="password"
-              placeholder="Password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-white/10 border border-white/10 rounded-2xl px-12 py-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#A855F7]/50 focus:border-[#A855F7]/50 transition-all font-medium"
-              required
-            />
-          </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-black hover:bg-[#4F46E5] transition-all shadow-2xl shadow-[#2563EB]/30 flex items-center justify-center gap-3 group active:scale-[0.98] disabled:opacity-50"
+            >
+              {loading ? 'Creating account...' : (
+                <>
+                  Create Account
+                  <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </button>
+          </form>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-gradient-to-r from-[#3B82F6] via-[#6366F1] to-[#A855F7] hover:brightness-110 text-white font-bold py-4 rounded-2xl shadow-xl shadow-blue-500/30 flex items-center justify-center gap-3 group transition-all active:scale-[0.98] mt-4"
-          >
-            {loading ? 'Creating account...' : 'Sign Up'}
-            {!loading && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
-          </button>
-        </form>
-
-        <div className="mt-8 space-y-6">
-          <div className="relative">
+          <div className="relative my-10">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
+              <div className="w-full border-t border-slate-100"></div>
             </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-[#0d0f1a] text-gray-400 font-medium whitespace-nowrap">Or continue with</span>
+            <div className="relative flex justify-center text-[10px] uppercase font-black tracking-[0.2em] text-slate-400">
+              <span className="bg-white px-4">OR SIGN UP WITH</span>
             </div>
           </div>
 
           <div className="flex justify-center">
             <GoogleLogin
               onSuccess={handleGoogleSuccess}
-              onError={() => setError('Google Login Failed')}
-              theme="filled_blue"
+              onError={() => setError('Google Registration Failed')}
+              theme="outline"
               shape="pill"
               size="large"
               width="360"
             />
           </div>
-        </div>
 
-        <div className="mt-10 pt-8 border-t border-white/5 text-center">
-          <p className="text-gray-500 font-medium">
+          <p className="text-center mt-10 text-sm font-medium text-slate-500">
             Already have an account?{' '}
-            <Link to="/login" className="text-white font-bold hover:text-[#4F46E5] transition-colors underline underline-offset-4 decoration-[#4F46E5]/30">
-              Sign In
+            <Link to="/login" className="text-[#2563EB] font-black hover:text-[#4F46E5] underline-offset-4 decoration-[#2563EB]/20 underline">
+              Log In
             </Link>
           </p>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 };

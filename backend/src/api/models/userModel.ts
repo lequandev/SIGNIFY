@@ -8,6 +8,7 @@ export interface IUser extends Document {
   googleId?: string;
   phoneNumber?: string;
   address?: string;
+  role: 'individual' | 'business';
   isVerified: boolean;
   verificationToken?: string;
   comparePassword(password: string): Promise<boolean>;
@@ -40,6 +41,11 @@ const userSchema = new Schema<IUser>({
   },
   address: {
     type: String,
+  },
+  role: {
+    type: String,
+    enum: ['individual', 'business'],
+    default: 'individual',
   },
   isVerified: {
     type: Boolean,
