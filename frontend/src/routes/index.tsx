@@ -2,11 +2,13 @@ import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
 import AuthPage from '../pages/AuthPage';
 import VerifyEmail from '../pages/VerifyEmail';
+import ServicePackage from '../pages/ServicePackage';
+import PaymentPage from '../pages/PaymentPage';
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <LandingPage />,
+    element: <App />,
   },
   {
     path: '/login',
