@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @OpenAPIDefinition(
     info = @Info(
-        title = "SoulSync Platform API", 
+        title = "Signify Platform API",
         version = "1.0", 
-        description = "API documentation for SoulSync Platform"
+        description = "API documentation for Signify Platform"
     ), 
     security = { @SecurityRequirement(name = "bearerAuth") }
 )
