@@ -1,81 +1,58 @@
 package com.signify.modules.subscription.service;
 
-import com.signify.modules.subscription.dto.PackageRequest;
-import com.signify.modules.subscription.dto.SubscribeRequest;
 import com.signify.modules.subscription.model.ServicePackage;
 import com.signify.modules.subscription.model.Subscription;
 import com.signify.modules.subscription.repository.ServicePackageRepository;
 import com.signify.modules.subscription.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
+import java.util.Optional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class SubscriptionService {
 
-    private final ServicePackageRepository packageRepository;
     private final SubscriptionRepository subscriptionRepository;
+    private final ServicePackageRepository servicePackageRepository;
 
-    public ServicePackage createPackage(PackageRequest request) {
-        ServicePackage servicePackage = ServicePackage.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .price(request.getPrice())
-                .durationDays(request.getDurationDays())
-                .aiLimitPerDay(request.getAiLimitPerDay())
-                .createdAt(LocalDateTime.now())
-                .build();
-        return packageRepository.save(servicePackage);
-    }
-
-    public List<ServicePackage> getAllPackages() {
-        return packageRepository.findAll();
-    }
-
-    public Subscription subscribe(SubscribeRequest request) {
-        ServicePackage servicePackage = packageRepository.findById(request.getPackageId())
+    @Transactional
+    public Subscription createSubscription(String userId, String packageId) {
+        ServicePackage servicePackage = servicePackageRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
 
-        // Invalidate old subscriptions if any
-        subscriptionRepository.findByUserIdAndStatus(request.getUserId(), "ACTIVE")
-                .ifPresent(sub -> {
-                    sub.setStatus("CANCELLED");
-                    subscriptionRepository.save(sub);
-                });
+        // Check if user already has an active subscription
+        Optional<Subscription> existingSub = subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
+        
+        LocalDateTime startDate = LocalDateTime.now();
+        if (existingSub.isPresent()) {
+            Subscription sub = existingSub.get();
+            // If already active, we might want to extend it or mark the old one as EXPIRED
+            // For simplicity, let's just mark the old one as REPLACED and create a new one
+            sub.setStatus("REPLACED");
+            subscriptionRepository.save(sub);
+        }
 
-        Subscription subscription = Subscription.builder()
-                .userId(request.getUserId())
-                .packageId(request.getPackageId())
-                .startDate(LocalDateTime.now())
-                .endDate(LocalDateTime.now().plusDays(servicePackage.getDurationDays()))
+        // Handle Enterprise package where durationDays might be null
+        Integer days = servicePackage.getDurationDays() != null ? servicePackage.getDurationDays() : 30;
+
+        Subscription newSubscription = Subscription.builder()
+                .userId(userId)
+                .packageId(packageId)
+                .startDate(startDate)
+                .endDate(startDate.plusDays(days))
                 .status("ACTIVE")
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return subscriptionRepository.save(subscription);
+        return subscriptionRepository.save(newSubscription);
     }
 
-    public List<Subscription> getUserSubscriptions(String userId) {
-        return subscriptionRepository.findByUserId(userId);
-    }
-
-    public ServicePackage updatePackage(String id, PackageRequest request) {
-        ServicePackage servicePackage = packageRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Package not found"));
-        
-        servicePackage.setName(request.getName());
-        servicePackage.setDescription(request.getDescription());
-        servicePackage.setPrice(request.getPrice());
-        servicePackage.setDurationDays(request.getDurationDays());
-        servicePackage.setAiLimitPerDay(request.getAiLimitPerDay());
-        
-        return packageRepository.save(servicePackage);
-    }
-
-    public void deletePackage(String id) {
-        packageRepository.deleteById(id);
+    public Optional<Subscription> getCurrentSubscription(String userId) {
+        return subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
     }
 }

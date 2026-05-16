@@ -43,4 +43,17 @@ public class JwtUtil {
             throw new RuntimeException("Error generating JWT token", e);
         }
     }
+
+    public String extractUserId(String token) {
+        try {
+            if (token != null && token.startsWith("Bearer ")) {
+                token = token.substring(7);
+            }
+            SignedJWT signedJWT = SignedJWT.parse(token);
+            return signedJWT.getJWTClaimsSet().getSubject();
+        } catch (Exception e) {
+            log.error("Error parsing JWT token", e);
+            return null;
+        }
+    }
 }

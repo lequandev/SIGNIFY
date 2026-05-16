@@ -24,9 +24,15 @@ const PaymentPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(600); // 10 minutes
-  const [status, setStatus] = useState<'success' | 'error' | 'cancel' | null>(
-    isSuccess ? 'success' : isCancel ? 'cancel' : null
-  );
+  const [status, setStatus] = useState<'success' | 'error' | 'cancel' | null>(null);
+
+  useEffect(() => {
+    if (location.pathname.includes('payment-success')) {
+      setStatus('success');
+    } else if (location.pathname.includes('payment-cancel')) {
+      setStatus('cancel');
+    }
+  }, [location.pathname]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -108,7 +114,7 @@ const PaymentPage = () => {
     setError(null);
     try {
       const response = await api.post('/payments/create-link', { 
-        packageId: selectedPlan._id || undefined,
+        packageId: selectedPlan.id || selectedPlan._id,
         name: selectedPlan.name
       });
       

@@ -1,51 +1,78 @@
 package com.signify.modules.subscription.controller;
 
-import com.signify.modules.subscription.dto.PackageRequest;
-import com.signify.modules.subscription.dto.SubscribeRequest;
+import com.signify.modules.subscription.dto.response.SubscriptionResponse;
 import com.signify.modules.subscription.model.ServicePackage;
 import com.signify.modules.subscription.model.Subscription;
+import com.signify.modules.subscription.repository.ServicePackageRepository;
 import com.signify.modules.subscription.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/packages")
+@RequestMapping("/api/v1/subscriptions")
 @RequiredArgsConstructor
 public class SubscriptionController {
 
     private final SubscriptionService subscriptionService;
-
-    @PostMapping
-    public ResponseEntity<ServicePackage> createPackage(@RequestBody PackageRequest request) {
-        return ResponseEntity.ok(subscriptionService.createPackage(request));
-    }
-
-    @GetMapping
-    public ResponseEntity<List<ServicePackage>> getAllPackages() {
-        return ResponseEntity.ok(subscriptionService.getAllPackages());
-    }
+    private final ServicePackageRepository servicePackageRepository;
 
     @PostMapping("/subscribe")
-    public ResponseEntity<Subscription> subscribe(@RequestBody SubscribeRequest request) {
-        return ResponseEntity.ok(subscriptionService.subscribe(request));
+    public ResponseEntity<?> subscribe(@RequestBody Map<String, String> request) {
+        String userId = getCurrentUserId();
+        String packageId = request.get("packageId");
+
+        if (userId == null || packageId == null) {
+            return ResponseEntity.badRequest().body("Invalid request: User ID or Package ID missing");
+        }
+
+        Subscription sub = subscriptionService.createSubscription(userId, packageId);
+        return ResponseEntity.ok(sub);
     }
 
-    @GetMapping("/user/{userId}")
-    public ResponseEntity<List<Subscription>> getUserSubscriptions(@PathVariable String userId) {
-        return ResponseEntity.ok(subscriptionService.getUserSubscriptions(userId));
+    @GetMapping("/active-plan")
+    public ResponseEntity<SubscriptionResponse> getActivePlan() {
+        return getMySubscription();
     }
 
-    @PutMapping("/{id}")
-    public ResponseEntity<ServicePackage> updatePackage(@PathVariable String id, @RequestBody PackageRequest request) {
-        return ResponseEntity.ok(subscriptionService.updatePackage(id, request));
+    @GetMapping("/me")
+    public ResponseEntity<SubscriptionResponse> getMySubscription() {
+        String userId = getCurrentUserId();
+        
+        if (userId == null) {
+            return ResponseEntity.status(401).build();
+        }
+        
+        Optional<Subscription> subOpt = subscriptionService.getCurrentSubscription(userId);
+        
+        if (subOpt.isPresent()) {
+            Subscription sub = subOpt.get();
+            ServicePackage pkg = servicePackageRepository.findById(sub.getPackageId()).orElse(null);
+            
+            SubscriptionResponse response = SubscriptionResponse.builder()
+                    .id(sub.getId())
+                    .packageId(sub.getPackageId())
+                    .packageName(pkg != null ? pkg.getName() : "Unknown Package")
+                    .startDate(sub.getStartDate())
+                    .endDate(sub.getEndDate())
+                    .status(sub.getStatus())
+                    .build();
+            return ResponseEntity.ok(response);
+        }
+        
+        return ResponseEntity.notFound().build();
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deletePackage(@PathVariable String id) {
-        subscriptionService.deletePackage(id);
-        return ResponseEntity.ok().build();
+    private String getCurrentUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated() && !"anonymousUser".equals(authentication.getPrincipal())) {
+            return authentication.getName();
+        }
+        return null;
     }
 }
