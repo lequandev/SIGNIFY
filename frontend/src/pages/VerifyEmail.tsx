@@ -3,8 +3,10 @@ import { useParams, Link } from 'react-router-dom';
 import api from '../services/api';
 import { CheckCircle, XCircle, Loader2, ArrowRight, Youtube } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useToast } from '../context/ToastContext';
 
 const VerifyEmail: React.FC = () => {
+  const { showToast } = useToast();
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -20,9 +22,12 @@ const VerifyEmail: React.FC = () => {
         const response = await api.get(`/users/verify/${token}`);
         setStatus('success');
         setMessage(response.data.message);
+        showToast('Email verified successfully!', 'success');
       } catch (err: any) {
         setStatus('error');
-        setMessage(err.response?.data?.message || 'Verification failed. The link may be invalid or expired.');
+        const msg = err.response?.data?.message || 'Verification failed. The link may be invalid or expired.';
+        setMessage(msg);
+        showToast(msg, 'error');
       }
     };
     verifyToken();
