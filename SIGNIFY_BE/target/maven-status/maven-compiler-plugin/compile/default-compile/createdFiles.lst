@@ -1,0 +1,3 @@
+com\soulsync\SoulsyncBeApplication.class
+com\soulsync\config\OpenApiConfig.class
+com\soulsync\config\SecurityConfig.class
