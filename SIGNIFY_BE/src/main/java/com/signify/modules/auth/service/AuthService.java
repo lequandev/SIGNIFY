@@ -31,7 +31,7 @@ public class AuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
 
-    @Value("${GOOGLE_CLIENT_ID:}")
+    @Value("${google.client-id}")
     private String googleClientId;
 
     @Value("${FRONTEND_URL:http://localhost:5173}")

@@ -37,15 +37,22 @@ public class SubscriptionService {
             subscriptionRepository.save(sub);
         }
 
+        // Handle Enterprise package where durationDays might be null
+        Integer days = servicePackage.getDurationDays() != null ? servicePackage.getDurationDays() : 30;
+
         Subscription newSubscription = Subscription.builder()
                 .userId(userId)
                 .packageId(packageId)
                 .startDate(startDate)
-                .endDate(startDate.plusDays(servicePackage.getDurationDays()))
+                .endDate(startDate.plusDays(days))
                 .status("ACTIVE")
                 .createdAt(LocalDateTime.now())
                 .build();
 
         return subscriptionRepository.save(newSubscription);
+    }
+
+    public Optional<Subscription> getCurrentSubscription(String userId) {
+        return subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
     }
 }

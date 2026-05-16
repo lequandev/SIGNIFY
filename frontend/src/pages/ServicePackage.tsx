@@ -1,141 +1,87 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Check, Zap, Shield, Globe, MessageSquare, Video, Cpu, Users } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { getServicePackages, ServicePackage as ServicePackageType } from '../services/packageService';
+import api from '../services/api';
+
+const iconMap: { [key: string]: React.ReactNode } = {
+  Cpu: <Cpu className="w-5 h-5" />,
+  Zap: <Zap className="w-5 h-5" />,
+  Globe: <Globe className="w-5 h-5" />,
+  Shield: <Shield className="w-5 h-5" />,
+  MessageSquare: <MessageSquare className="w-5 h-5" />,
+  Users: <Users className="w-5 h-5" />,
+  Video: <Video className="w-5 h-5" />,
+};
 
 const ServicePackage: React.FC = () => {
   const [planType, setPlanType] = useState<'individual' | 'business'>('individual');
+  const [packages, setPackages] = useState<ServicePackageType[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { isAuthenticated } = useSelector((state: any) => state.auth);
 
-  const handlePurchase = (pkg: any) => {
-    console.log('Purchase clicked for pkg:', pkg.name);
+  useEffect(() => {
+    const fetchPackages = async () => {
+      try {
+        const [packagesData, activeSubData] = await Promise.all([
+          getServicePackages(),
+          api.get('/v1/subscriptions/me').then(res => res.data).catch(() => null)
+        ]);
+        setPackages(packagesData);
+        setActiveSubscription(activeSubData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPackages();
+  }, []);
+
+  const handleSelectPlan = (pkg: ServicePackageType) => {
+    if (activeSubscription?.packageId === pkg.id) return;
+    
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/packages', plan: pkg } });
+      return;
+    }
+
     if (pkg.price === 'Liên hệ') {
       window.location.href = 'mailto:contact@signify.ai';
       return;
     }
     
-    // Create a serializable version of the plan by removing JSX icons
-    const serializablePlan = {
-      ...pkg,
-      features: pkg.features.map((f: any) => ({ text: f.text }))
-    };
-
-    console.log('Navigating to /payment with serializable state:', serializablePlan.name);
-    navigate('/payment', { state: { plan: serializablePlan } });
+    navigate('/payment', { state: { plan: pkg } });
   };
 
-  const individualPackages = [
-    {
-      name: 'Gói 1 Tháng',
-      price: '39.000',
-      duration: 'tháng',
-      description: 'Linh hoạt truy cập vào tất cả các tính năng cao cấp.',
-      buttonText: 'Bắt đầu ngay',
-      features: [
-        { icon: <Cpu className="w-5 h-5" />, text: 'Dùng giới hạn 1 tiếng / ngày' },
-        { icon: <Zap className="w-5 h-5" />, text: 'Công nghệ dịch AI cơ bản' },
-        { icon: <Globe className="w-5 h-5" />, text: 'Tất cả các phương ngữ' },
-        { icon: <Shield className="w-5 h-5" />, text: 'Không quảng cáo' },
-      ],
-    },
-    {
-      name: 'Gói 6 Tháng',
-      price: '200.000',
-      duration: '6 tháng',
-      description: 'Tiết kiệm hơn với gói dịch vụ nửa năm.',
-      buttonText: 'Chọn Gói 6 Tháng',
-      isRecommended: true,
-      badge: 'Giá Trị Nhất',
-      features: [
-        { icon: <Zap className="w-5 h-5" />, text: 'Thời gian sử dụng không giới hạn' },
-        { icon: <Users className="w-5 h-5" />, text: 'Được tùy chỉnh nhân vật' },
-        { icon: <MessageSquare className="w-5 h-5" />, text: 'Được chọn giọng nói AI' },
-        { icon: <Cpu className="w-5 h-5" />, text: 'Dịch AI thời gian thực' },
-        { icon: <Shield className="w-5 h-5" />, text: 'Không quảng cáo' },
-      ],
-    },
-    {
-      name: 'Gói 12 Tháng',
-      price: '400.000',
-      duration: 'năm',
-      description: 'Gói cam kết dài hạn cho sự gắn kết tối đa.',
-      buttonText: 'Gói Năm',
-      badge: 'Phổ Biến Nhất',
-      features: [
-        { icon: <Zap className="w-5 h-5" />, text: 'Thời gian sử dụng không giới hạn' },
-        { icon: <Users className="w-5 h-5" />, text: 'Được tùy chỉnh nhân vật' },
-        { icon: <MessageSquare className="w-5 h-5" />, text: 'Được chọn giọng nói AI' },
-        { icon: <Cpu className="w-5 h-5" />, text: 'Dịch AI thời gian thực' },
-        { icon: <Shield className="w-5 h-5" />, text: 'Không quảng cáo' },
-        { icon: <Globe className="w-5 h-5" />, text: 'Truy cập sớm các tính năng mới' },
-      ],
-    },
-  ];
+  const activePackages = packages.filter(pkg => pkg.planType === planType);
 
-  const businessPackages = [
-    {
-      name: 'Doanh nghiệp Khởi nghiệp',
-      price: '500.000',
-      duration: 'tháng',
-      description: 'Hoàn hảo cho các nhóm nhỏ và tổ chức mới bắt đầu.',
-      buttonText: 'Bắt đầu dùng thử',
-      features: [
-        { icon: <Users className="w-5 h-5" />, text: 'Tối đa 5 thành viên' },
-        { icon: <Cpu className="w-5 h-5" />, text: 'Dịch AI nâng cao' },
-        { icon: <Shield className="w-5 h-5" />, text: 'Bảng điều khiển quản trị' },
-        { icon: <Globe className="w-5 h-5" />, text: 'Thư viện ký hiệu tùy chỉnh' },
-      ],
-    },
-    {
-      name: 'Doanh nghiệp Pro',
-      price: '1.199.000',
-      duration: 'tháng',
-      description: 'Mở rộng quy mô giao tiếp trong toàn công ty.',
-      buttonText: 'Nâng cấp lên Pro',
-      isRecommended: true,
-      badge: 'Khuyên dùng',
-      features: [
-        { icon: <Users className="w-5 h-5" />, text: 'Tối đa 10 thành viên' },
-        { icon: <Cpu className="w-5 h-5" />, text: 'AI cấp độ doanh nghiệp' },
-        { icon: <Shield className="w-5 h-5" />, text: 'SSO & Bảo mật nâng cao' },
-        { icon: <Globe className="w-5 h-5" />, text: 'Hỗ trợ đa vùng' },
-        { icon: <Video className="w-5 h-5" />, text: 'Truy cập API tích hợp' },
-      ],
-    },
-    {
-      name: 'Doanh nghiệp Lớn',
-      price: 'Liên hệ',
-      duration: 'báo giá',
-      description: 'Giải pháp tùy chỉnh cho tác động quy mô lớn.',
-      buttonText: 'Liên hệ kinh doanh',
-      features: [
-        { icon: <Users className="w-5 h-5" />, text: 'Không giới hạn thành viên' },
-        { icon: <Cpu className="w-5 h-5" />, text: 'Đào tạo AI riêng biệt' },
-        { icon: <Shield className="w-5 h-5" />, text: 'Hỗ trợ Premium 24/7' },
-        { icon: <Globe className="w-5 h-5" />, text: 'Tùy chọn triển khai riêng' },
-        { icon: <MessageSquare className="w-5 h-5" />, text: 'Quản lý tài khoản riêng' },
-      ],
-    },
-  ];
-
-  const activePackages = planType === 'individual' ? individualPackages : businessPackages;
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#2563EB]"></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 font-sans selection:bg-[#4F46E5] selection:text-white">
+    <div className="min-h-screen bg-slate-50 py-12 px-4 font-sans">
       <div className="max-w-7xl mx-auto">
-        <div className="flex justify-center mb-16">
-          <div className="flex items-center gap-3">
-            <img 
-              src="/logo_removebg.png" 
-              alt="Signify Logo" 
-              className="h-16 w-auto object-contain"
-              onError={(e) => {
-                // Fallback if logo_removebg.png is not found
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement?.insertAdjacentHTML('beforeend', '<span class="text-2xl font-bold tracking-tight text-slate-900">SIGNIFY</span>');
-              }}
-            />
-          </div>
+        <div className="flex items-center justify-between mb-16">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center shadow-lg shadow-[#2563EB]/20">
+              <Users className="text-white w-6 h-6" />
+            </div>
+            <span className="text-2xl font-bold tracking-tight text-slate-900 uppercase">SIGNIFY</span>
+          </Link>
+          <Link to="/" className="text-sm font-bold text-slate-500 hover:text-[#2563EB] transition-colors">
+            Back to Home
+          </Link>
         </div>
 
         <div className="text-center mb-12">
@@ -144,7 +90,7 @@ const ServicePackage: React.FC = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-4xl md:text-5xl font-bold text-slate-900 mb-6"
           >
-            Chọn gói của bạn
+            Choose your plan
           </motion.h1>
           
           <div className="inline-flex bg-slate-200 p-1 rounded-full mb-12">
@@ -156,7 +102,7 @@ const ServicePackage: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Cá nhân
+              Individual
             </button>
             <button
               onClick={() => setPlanType('business')}
@@ -166,55 +112,56 @@ const ServicePackage: React.FC = () => {
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Doanh nghiệp
+              Business
             </button>
           </div>
           
           <p className="text-slate-500 text-lg max-w-2xl mx-auto">
             {planType === 'individual' 
-              ? 'Giải phóng tiềm năng dịch ngôn ngữ ký hiệu với AI cho mục đích cá nhân.' 
-              : 'Trao quyền cho đội ngũ của bạn với các công cụ dịch thuật chuyên nghiệp.'}
+              ? 'Unlock the full potential of AI-powered sign language translation for personal use.' 
+              : 'Empower your team with professional-grade translation and collaboration tools.'}
           </p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {activePackages.map((pkg, idx) => (
             <motion.div
-              key={pkg.name}
+              key={pkg.id || pkg.name}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: idx * 0.1 }}
-              className={`relative bg-white rounded-[32px] p-10 border-2 transition-all duration-300 flex flex-col ${
-                pkg.isRecommended 
-                  ? 'border-[#4F46E5]/40 shadow-[0_32px_64px_-16px_rgba(79,70,229,0.15)] scale-105 z-10' 
-                  : 'border-transparent shadow-[0_12px_24px_-8px_rgba(0,0,0,0.08)] hover:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.12)]'
+              className={`relative bg-white rounded-3xl p-8 border-2 transition-all duration-300 flex flex-col ${
+                activeSubscription?.packageId === pkg.id
+                  ? 'border-emerald-500 shadow-xl'
+                  : pkg.isRecommended 
+                    ? 'border-[#4F46E5] shadow-2xl scale-105 z-10' 
+                    : 'border-transparent shadow-md hover:shadow-lg'
               }`}
             >
-              {pkg.badge && (
-                <div className={`absolute -top-3 left-1/2 -translate-x-1/2 px-5 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.2em] text-white shadow-sm ${
+              {(pkg.badge || activeSubscription?.packageId === pkg.id) && (
+                <div className={`absolute -top-4 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${
+                  activeSubscription?.packageId === pkg.id ? 'bg-emerald-500' :
                   pkg.isRecommended ? 'bg-[#4F46E5]' : 'bg-slate-800'
                 }`}>
-                  {pkg.badge}
+                  {activeSubscription?.packageId === pkg.id ? 'Current Active' : pkg.badge}
                 </div>
               )}
 
               <div className="mb-8">
-                <h2 className="text-2xl font-black tracking-tight text-slate-900 mb-6">{pkg.name}</h2>
-                <div className="flex items-baseline gap-1.5 mb-2">
-                  <span className="text-2xl font-bold text-slate-400">₫</span>
-                  <span className="text-5xl font-black text-slate-900 tracking-tighter">
-                    {pkg.price}
-                  </span>
-                  <span className="text-slate-400 text-sm font-semibold ml-1">/ {pkg.duration}</span>
+                <h2 className="text-2xl font-bold text-slate-900 mb-4">{pkg.name}</h2>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-xl font-medium text-slate-500">₫</span>
+                  <span className="text-4xl font-bold text-slate-900">{pkg.price}</span>
+                  <span className="text-slate-500 text-sm ml-1">/ {pkg.duration}</span>
                 </div>
-                <p className="text-slate-500 text-sm leading-relaxed mt-4">{pkg.description}</p>
+                <p className="text-slate-500 text-sm leading-relaxed">{pkg.description}</p>
               </div>
 
               <div className="space-y-4 mb-8 flex-grow">
                 {pkg.features.map((feature, fIdx) => (
                   <div key={fIdx} className="flex items-start gap-3 text-slate-600">
-                    <div className={`mt-0.5 ${pkg.isRecommended ? 'text-[#4F46E5]' : 'text-slate-400'}`}>
-                      {feature.icon}
+                    <div className={`mt-0.5 ${activeSubscription?.packageId === pkg.id ? 'text-emerald-500' : pkg.isRecommended ? 'text-[#4F46E5]' : 'text-slate-400'}`}>
+                      {iconMap[feature.icon] || <Check className="w-5 h-5" />}
                     </div>
                     <span className="text-sm font-medium">{feature.text}</span>
                   </div>
@@ -222,14 +169,17 @@ const ServicePackage: React.FC = () => {
               </div>
 
               <button
-                onClick={() => handlePurchase(pkg)}
+                onClick={() => handleSelectPlan(pkg)}
+                disabled={activeSubscription?.packageId === pkg.id}
                 className={`w-full py-4 rounded-2xl font-semibold transition-all duration-200 ${
-                  pkg.isRecommended 
-                    ? 'bg-[#4F46E5] hover:bg-[#7C3AED] text-white shadow-lg shadow-[#4F46E5]/20' 
-                    : 'bg-slate-900 hover:bg-slate-800 text-white shadow-md'
+                  activeSubscription?.packageId === pkg.id
+                    ? 'bg-emerald-50 text-emerald-600 border-2 border-emerald-100 cursor-default'
+                    : pkg.isRecommended 
+                      ? 'bg-[#4F46E5] hover:bg-[#7C3AED] text-white shadow-lg shadow-[#4F46E5]/20' 
+                      : 'bg-slate-900 hover:bg-slate-800 text-white shadow-md'
                 }`}
               >
-                {pkg.buttonText}
+                {activeSubscription?.packageId === pkg.id ? 'Current Active' : pkg.buttonText}
               </button>
             </motion.div>
           ))}
@@ -238,10 +188,10 @@ const ServicePackage: React.FC = () => {
         <div className="mt-20 text-center">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white rounded-full shadow-sm border border-slate-100 mb-8">
             <Check className="w-4 h-4 text-emerald-500" />
-            <span className="text-sm font-medium text-slate-600">Cam kết hoàn tiền trong 30 ngày</span>
+            <span className="text-sm font-medium text-slate-600">30-day money-back guarantee</span>
           </div>
           <p className="text-slate-400 text-sm">
-            © 2026 Signify AI. Trao quyền giao tiếp thông qua công nghệ.
+            © 2026 Signify AI. Empowering communication through technology.
           </p>
         </div>
       </div>

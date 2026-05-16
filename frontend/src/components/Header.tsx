@@ -27,7 +27,7 @@ const Header: React.FC = () => {
       </div>
       <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
         <Link to="/" className="hover:text-[#2563EB] transition-colors">Features</Link>
-        <Link to="/pricing" className="hover:text-[#2563EB] transition-colors">Pricing</Link>
+        <Link to="/packages" className="hover:text-[#2563EB] transition-colors">Service</Link>
         
         {isAuthenticated ? (
           <div className="flex items-center gap-6">

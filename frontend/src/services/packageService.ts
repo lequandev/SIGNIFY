@@ -1,0 +1,24 @@
+import api from './api';
+
+export interface Feature {
+  icon: string;
+  text: string;
+}
+
+export interface ServicePackage {
+  id: string;
+  planType: 'individual' | 'business';
+  name: string;
+  description: string;
+  price: string;
+  duration: string;
+  buttonText: string;
+  isRecommended: boolean;
+  badge: string | null;
+  features: Feature[];
+}
+
+export const getServicePackages = async (): Promise<ServicePackage[]> => {
+  const response = await api.get('/v1/service-packages');
+  return response.data;
+};

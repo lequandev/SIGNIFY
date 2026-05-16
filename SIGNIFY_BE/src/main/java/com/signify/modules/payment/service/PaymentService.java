@@ -52,11 +52,15 @@ public class PaymentService {
         // Generate unique orderCode (must be less than 9007199254740991)
         Long orderCode = generateOrderCode();
 
+        // Convert String price (e.g., "39,000") to numeric format
+        String priceClean = servicePackage.getPrice().replace(",", "");
+        BigDecimal amount = "Liên hệ".equalsIgnoreCase(priceClean) ? BigDecimal.ZERO : new BigDecimal(priceClean);
+
         // Create Payment record
         Payment payment = Payment.builder()
                 .userId(userId)
                 .subscriptionId(servicePackage.getId())
-                .amount(servicePackage.getPrice())
+                .amount(amount)
                 .orderCode(orderCode)
                 .status("PENDING")
                 .paymentMethod("PAYOS")
@@ -64,7 +68,11 @@ public class PaymentService {
         paymentRepository.save(payment);
 
         try {
-            long price = servicePackage.getPrice().longValue();
+            if ("Liên hệ".equalsIgnoreCase(priceClean)) {
+                throw new RuntimeException("Please contact sales for this package");
+            }
+            long price = Long.parseLong(priceClean);
+            
             PaymentLinkItem item = PaymentLinkItem.builder()
                     .name(servicePackage.getName())
                     .quantity(1)

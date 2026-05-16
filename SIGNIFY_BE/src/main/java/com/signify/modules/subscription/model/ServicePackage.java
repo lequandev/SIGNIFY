@@ -8,6 +8,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -20,16 +21,39 @@ public class ServicePackage {
     @Id
     String id;
 
+    String planType; // individual, business
+
     String name;
 
     String description;
 
-    BigDecimal price;
+    String price; // Storing as String to handle "Liên hệ" and formatting like "39,000"
 
-    Integer durationDays;
+    String duration; // tháng, 6 tháng, năm, báo giá
+
+    Integer durationDays; // Internal calculation for subscription expiry
 
     Integer aiLimitPerDay;
 
+    String buttonText;
+
+    Boolean isRecommended;
+
+    String badge;
+
+    List<Feature> features;
+
     @CreatedDate
     LocalDateTime createdAt;
+
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @FieldDefaults(level = AccessLevel.PRIVATE)
+    public static class Feature {
+        String icon;
+        String text;
+    }
 }
