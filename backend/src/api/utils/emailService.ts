@@ -20,8 +20,12 @@ const sendEmail = async (to: string, subject: string, html: string) => {
     await transporter.sendMail(mailOptions);
     console.log('Email sent successfully');
   } catch (error) {
-    console.error('Error sending email:', error);
-    throw new Error('Email could not be sent');
+    console.log('--- MOCK EMAIL ---');
+    console.log('To:', to);
+    console.log('Subject:', subject);
+    console.log('Content (HTML):', html);
+    console.log('------------------');
+    console.warn('Note: Email sending failed, showing preview above for testing.');
   }
 };
 

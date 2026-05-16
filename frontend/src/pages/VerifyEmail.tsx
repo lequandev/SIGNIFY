@@ -28,68 +28,79 @@ const VerifyEmail: React.FC = () => {
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0c1a] bg-grid p-6 overflow-hidden relative">
-      {/* Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-[#3B82F6]/20 blur-[130px] rounded-full animate-pulse" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[45%] h-[45%] bg-[#A855F7]/20 blur-[130px] rounded-full animate-pulse delay-1000" />
-
-      <div className="w-full max-w-[480px] glass rounded-[2.5rem] p-10 shadow-2xl animate-slow-fade relative z-10 text-center">
-        <Link to="/" className="inline-flex flex-col items-center group mb-10">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-tr from-[#3B82F6] to-[#A855F7] rounded-2xl mb-3 shadow-lg shadow-indigo-500/30 group-hover:rotate-6 transition-transform duration-500">
-            <Youtube className="text-white w-8 h-8" />
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans selection:bg-[#2563EB] selection:text-white">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 p-10 text-center"
+      >
+        <Link to="/" className="flex flex-col items-center mb-10 group">
+          <div className="w-14 h-14 bg-[#2563EB] rounded-2xl flex items-center justify-center shadow-xl shadow-[#2563EB]/20 group-hover:scale-105 transition-transform mb-4">
+            <img 
+              src="/logo_removebg.png" 
+              alt="Signify" 
+              className="w-10 h-10 object-contain brightness-0 invert" 
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                e.currentTarget.parentElement?.insertAdjacentHTML('beforeend', '<div class="text-white font-black text-2xl">S</div>');
+              }}
+            />
           </div>
-          <span className="text-xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-white to-gray-400 uppercase opacity-70 group-hover:opacity-100 transition-opacity">
-            SIGNIFY
-          </span>
+          <span className="text-2xl font-black tracking-tight text-slate-900 uppercase">SIGNIFY</span>
         </Link>
 
         {status === 'loading' && (
           <div className="space-y-6">
             <div className="flex justify-center">
-              <Loader2 className="w-16 h-16 text-[#3B82F6] animate-spin" />
+              <Loader2 className="w-16 h-16 text-[#2563EB] animate-spin" />
             </div>
-            <h1 className="text-3xl font-black text-white">Verifying your email...</h1>
-            <p className="text-gray-400 font-medium">Please wait while we secure your account.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Xác minh tài khoản...</h1>
+            <p className="text-slate-500 font-medium px-6">Vui lòng đợi trong giây lát khi chúng tôi bảo mật tài khoản của bạn.</p>
           </div>
         )}
 
         {status === 'success' && (
-          <div className="space-y-6 animate-scale-up">
+          <div className="space-y-8 animate-scale-up">
             <div className="flex justify-center">
-              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center border border-green-500/30">
-                <CheckCircle className="w-12 h-12 text-green-500" />
+              <div className="w-24 h-24 bg-emerald-50 rounded-[2rem] flex items-center justify-center border-2 border-emerald-100 shadow-inner">
+                <CheckCircle className="w-12 h-12 text-emerald-500" />
               </div>
             </div>
-            <h1 className="text-3xl font-black text-white">Email Verified!</h1>
-            <p className="text-gray-400 font-medium leading-relaxed">{message}</p>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Xác minh thành công!</h1>
+              <p className="text-slate-500 font-medium px-4 leading-relaxed">{message}</p>
+            </div>
             <Link
               to="/login"
-              className="inline-flex items-center justify-center gap-2 w-full bg-gradient-to-r from-[#3B82F6] to-[#6366F1] text-white font-bold py-4 rounded-2xl hover:brightness-110 shadow-xl shadow-blue-500/30 transition-all active:scale-[0.98]"
+              className="inline-flex items-center justify-center gap-3 w-full bg-[#2563EB] text-white font-black py-5 rounded-2xl hover:bg-[#4F46E5] shadow-2xl shadow-[#2563EB]/30 transition-all active:scale-[0.98] group"
             >
-              Sign In to Your Account
-              <ArrowRight className="w-5 h-5" />
+              Đăng nhập ngay
+              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
         )}
 
         {status === 'error' && (
-          <div className="space-y-6 animate-shake">
+          <div className="space-y-8 animate-shake">
             <div className="flex justify-center">
-              <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center border border-red-500/30">
+              <div className="w-24 h-24 bg-red-50 rounded-[2rem] flex items-center justify-center border-2 border-red-100 shadow-inner">
                 <XCircle className="w-12 h-12 text-red-500" />
               </div>
             </div>
-            <h1 className="text-3xl font-black text-white">Verification Failed</h1>
-            <p className="text-red-400/80 font-medium leading-relaxed">{message}</p>
+            <div className="space-y-2">
+              <h1 className="text-3xl font-black text-slate-900 tracking-tight">Xác minh lỗi</h1>
+              <p className="text-red-500/80 font-bold px-4 leading-relaxed">{message}</p>
+            </div>
             <Link
               to="/register"
-              className="inline-flex items-center justify-center gap-2 w-full bg-white/10 border border-white/20 text-white font-bold py-4 rounded-2xl hover:bg-white/20 transition-all"
+              className="inline-flex items-center justify-center gap-3 w-full bg-slate-50 border-2 border-slate-100 text-slate-600 font-black py-5 rounded-2xl hover:bg-slate-100 transition-all active:scale-[0.98]"
             >
-              Try Registering Again
+              Thử đăng ký lại
             </Link>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 };
