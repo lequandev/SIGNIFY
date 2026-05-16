@@ -12,3 +12,10 @@ cors:
 
 app:
   name: Signify
+
+payos:
+  client-id: ${PAYOS_CLIENT_ID:abbf6c5f-69c8-4975-bca9-2a0a9c68a7a0}
+  api-key: ${PAYOS_API_KEY:f12941cf-5815-4e75-b183-a7a11b535eab}
+  checksum-key: ${PAYOS_CHECKSUM_KEY:fc066d6b8fa986fa68af1352bbb51c87dc26de6cefc3ca1f5c4c6b0a7fbe3a99}
+  return-url: ${FRONTEND_URL:http://localhost:5173}/payment-success
+  cancel-url: ${FRONTEND_URL:http://localhost:5173}/payment-cancel

@@ -28,7 +28,9 @@ public class Payment {
 
     String paymentMethod;
 
-    String transactionCode;
+    String transactionCode; // ID returned by PayOS
+
+    Long orderCode; // Required by PayOS
 
     String status;
 
