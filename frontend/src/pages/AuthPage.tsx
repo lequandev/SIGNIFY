@@ -88,7 +88,7 @@ const AuthPage = () => {
   };
 
   const springTransition = {
-    type: "spring",
+    type: "spring" as const,
     stiffness: 120,
     damping: 20
   };
