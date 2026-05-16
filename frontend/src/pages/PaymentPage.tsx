@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, CreditCard, Shield, Lock, Check, ArrowLeft, QrCode, Copy, X, AlertCircle, Loader2 } from 'lucide-react';
-import api from '../lib/api';
+import api from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 
 const PaymentPage = () => {

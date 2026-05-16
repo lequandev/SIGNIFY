@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api from '../lib/api';
-import { CheckCircle, XCircle, Loader2, ArrowRight } from 'lucide-react';
-import { motion } from 'framer-motion';
+import api from '../services/api';
+import { CheckCircle, XCircle, Loader2, ArrowRight, Youtube } from 'lucide-react';
+import { motion } from 'motion/react';
 
 const VerifyEmail: React.FC = () => {
   const { token } = useParams<{ token: string }>();
