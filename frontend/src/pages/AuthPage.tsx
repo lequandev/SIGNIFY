@@ -6,8 +6,10 @@ import { Mail, Lock, ArrowRight, Github, Chrome, User, ArrowLeft, CheckCircle2 }
 import { GoogleLogin } from '@react-oauth/google';
 import api from '../services/api';
 import { setLogin } from '../store/authSlice';
+import { useToast } from '../context/ToastContext';
 
 const AuthPage = () => {
+  const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -43,9 +45,18 @@ const AuthPage = () => {
       
       localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
-      navigate('/');
+      
+      showToast(`Welcome back, ${user.fullName}!`, 'success');
+      
+      if (user.role === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Google login failed.');
+      const msg = err.response?.data?.message || 'Google login failed.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -61,9 +72,18 @@ const AuthPage = () => {
       
       localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
-      navigate('/');
+      
+      showToast('Login successful!', 'success');
+      
+      if (user.role === 'ADMIN') {
+        navigate('/admin');
+      } else {
+        navigate('/');
+      }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -80,8 +100,11 @@ const AuthPage = () => {
         password: signUpPassword
       });
       setIsSuccess(true);
+      showToast('Registration successful! Please check your email.', 'success');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      const msg = err.response?.data?.message || 'Registration failed. Please try again.';
+      setError(msg);
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
