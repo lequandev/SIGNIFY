@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import api from '../lib/api';
+import api from '../services/api';
 import { CheckCircle, XCircle, Loader2, ArrowRight, Youtube } from 'lucide-react';
 
 const VerifyEmail: React.FC = () => {
