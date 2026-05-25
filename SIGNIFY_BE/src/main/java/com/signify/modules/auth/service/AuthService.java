@@ -52,6 +52,8 @@ public class AuthService {
                 .address(request.getAddress())
                 .verificationToken(verificationToken)
                 .isVerified(false)
+                .role("USER")
+                .status("PENDING")
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -86,6 +88,7 @@ public class AuthService {
                 ._id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .role(user.getRole())
                 .token(token)
                 .build();
     }
@@ -95,6 +98,7 @@ public class AuthService {
                 .orElseThrow(() -> new RuntimeException("Invalid or expired verification token"));
 
         user.setIsVerified(true);
+        user.setStatus("ACTIVE");
         user.setVerificationToken(null);
         userRepository.save(user);
     }
@@ -129,6 +133,8 @@ public class AuthService {
                         .email(email)
                         .googleId(googleId)
                         .isVerified(true)
+                        .role("USER")
+                        .status("ACTIVE")
                         .createdAt(LocalDateTime.now())
                         .build();
                 userRepository.save(user);
@@ -140,6 +146,7 @@ public class AuthService {
                     ._id(user.getId())
                     .fullName(user.getFullName())
                     .email(user.getEmail())
+                    .role(user.getRole())
                     .token(token)
                     .build();
         } catch (Exception e) {
