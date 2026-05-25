@@ -4,12 +4,28 @@ server:
 spring:
   application:
     name: Signify
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: signify
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 100MB
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${EMAIL_USER:de180077trantheluong@gmail.com}
+    password: ${EMAIL_PASS:dhxk lobq ezff mtel}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 springdoc:
   swagger-ui:
