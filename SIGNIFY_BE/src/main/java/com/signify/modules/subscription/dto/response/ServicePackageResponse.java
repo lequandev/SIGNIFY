@@ -19,6 +19,8 @@ public class ServicePackageResponse {
     String description;
     String price;
     String duration;
+    Integer durationDays;
+    Integer aiLimitPerDay;
     String buttonText;
     Boolean isRecommended;
     String badge;

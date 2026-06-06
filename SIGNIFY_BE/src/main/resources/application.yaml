@@ -30,3 +30,6 @@ spring:
 springdoc:
   swagger-ui:
     path: /swagger-ui.html
+
+gemini:
+  api-key: ${GEMINI_API_KEY:AIzaSyDo3u3GIgO1OJaMf_-oNnfdSaDpMDon5RY}

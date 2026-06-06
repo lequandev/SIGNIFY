@@ -57,12 +57,12 @@ const LandingPage: React.FC = () => {
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               ) : (
-                <Link to="/translate" className="w-full sm:w-auto bg-[#2563EB] text-white px-8 py-4 rounded-2xl font-bold hover:bg-[#4F46E5] transition-all shadow-xl shadow-[#2563EB]/20 flex items-center justify-center gap-2 group">
-                  Open Translator
+                <Link to="/packages" className="w-full sm:w-auto bg-[#2563EB] text-white px-8 py-4 rounded-2xl font-bold hover:bg-[#4F46E5] transition-all shadow-xl shadow-[#2563EB]/20 flex items-center justify-center gap-2 group">
+                  Explore Packages
                   <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Link>
               )}
-              <Link to="/pricing" className="w-full sm:w-auto bg-slate-50 text-slate-900 px-8 py-4 rounded-2xl font-bold hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center">
+              <Link to="/packages" className="w-full sm:w-auto bg-slate-50 text-slate-900 px-8 py-4 rounded-2xl font-bold hover:bg-slate-100 transition-all border border-slate-200 flex items-center justify-center">
                 View Pricing
               </Link>
             </div>

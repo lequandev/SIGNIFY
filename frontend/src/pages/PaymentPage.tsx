@@ -151,10 +151,7 @@ const PaymentPage = () => {
             <span className="text-sm font-black text-slate-500 group-hover:text-[#2563EB] transition-colors uppercase tracking-wider">Quay lại Gói Dịch Vụ</span>
           </Link>
           <div className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-[#2563EB] rounded-2xl flex items-center justify-center shadow-xl shadow-[#2563EB]/20 group-hover:scale-110 transition-transform">
-              <img src="/logo_removebg.png" alt="Signify" className="w-6 h-6 brightness-0 invert" />
-            </div>
-            <span className="text-xl font-black tracking-tight text-slate-900 uppercase">SIGNIFY</span>
+            <img src="/logo_removebg.png" alt="Signify Logo" className="h-12 object-contain group-hover:scale-110 transition-transform" />
           </div>
         </div>
 

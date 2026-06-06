@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "SIGNIFY",
+  "version": "1.0.0",
+  "description": "AI-powered sign language assistant for YouTube",
+  "permissions": ["sidePanel", "storage", "tabs"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Mở SIGNIFY"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "signs/*",
+        "timeline.json",
+        "logo_removed_bg.png"
+      ],
+      "matches": [
+        "*://*.youtube.com/*"
+      ]
+    }
+  ]
+}

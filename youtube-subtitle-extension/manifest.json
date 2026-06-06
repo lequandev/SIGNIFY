@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Signify - YouTube Sign Language Overlay",
+  "version": "1.0.0",
+  "description": "Translates YouTube subtitles into Sign Language animations using Gemini AI and custom vocabulary mapping.",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*",
+    "http://localhost:8081/*",
+    "http://127.0.0.1:8081/*",
+    "*://*.youtube.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["inject.js", "wordDictionary.js", "vietnameseCompoundWords.json"],
+      "matches": ["*://*.youtube.com/*"]
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/watch*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ]
+}

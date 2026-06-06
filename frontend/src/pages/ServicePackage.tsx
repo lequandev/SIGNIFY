@@ -5,6 +5,8 @@ import { Check, Zap, Shield, Globe, MessageSquare, Video, Cpu, Users } from 'luc
 import { useSelector } from 'react-redux';
 import { getServicePackages, ServicePackage as ServicePackageType } from '../services/packageService';
 import api from '../services/api';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
 
 const iconMap: { [key: string]: React.ReactNode } = {
   Cpu: <Cpu className="w-5 h-5" />,
@@ -70,21 +72,12 @@ const ServicePackage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 font-sans">
-      <div className="max-w-7xl mx-auto">
-        <div className="flex items-center justify-between mb-16">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-[#2563EB] rounded-xl flex items-center justify-center shadow-lg shadow-[#2563EB]/20">
-              <Users className="text-white w-6 h-6" />
-            </div>
-            <span className="text-2xl font-bold tracking-tight text-slate-900 uppercase">SIGNIFY</span>
-          </Link>
-          <Link to="/" className="text-sm font-bold text-slate-500 hover:text-[#2563EB] transition-colors">
-            Back to Home
-          </Link>
-        </div>
-
-        <div className="text-center mb-12">
+    <div className="min-h-screen flex flex-col bg-white font-sans relative">
+      <Header />
+      
+      <div className="flex-grow bg-slate-50 py-16 px-4 font-sans">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-12">
           <motion.h1 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -190,11 +183,11 @@ const ServicePackage: React.FC = () => {
             <Check className="w-4 h-4 text-emerald-500" />
             <span className="text-sm font-medium text-slate-600">30-day money-back guarantee</span>
           </div>
-          <p className="text-slate-400 text-sm">
-            © 2026 Signify AI. Empowering communication through technology.
-          </p>
         </div>
       </div>
+      </div>
+      
+      <Footer />
     </div>
   );
 };

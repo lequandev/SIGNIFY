@@ -422,11 +422,12 @@ const AuthPage = () => {
               transition={{ duration: 0.2 }}
             >
               <div className="flex flex-col items-center mb-10">
-                <div className="w-16 h-16 bg-[#2563EB] rounded-[1.5rem] flex items-center justify-center mb-6 shadow-2xl shadow-[#2563EB]/30">
-                  {isSignIn ? <Lock className="text-white w-8 h-8" /> : <User className="text-white w-8 h-8" />}
-                </div>
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic">SIGNIFY</h1>
-                <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2">
+                <img 
+                  src="/logo_removebg.png" 
+                  alt="Signify Logo" 
+                  className="h-20 object-contain mb-6"
+                />
+                <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">
                   {isSignIn ? 'Member Authentication' : 'Account Registration'}
                 </p>
               </div>

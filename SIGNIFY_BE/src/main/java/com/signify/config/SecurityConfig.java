@@ -23,7 +23,11 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .cors(cors -> cors.configurationSource(request -> {
                 org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
-                config.setAllowedOrigins(java.util.List.of("http://localhost:5173"));
+                config.setAllowedOriginPatterns(java.util.List.of(
+                    "http://localhost:5173",
+                    "chrome-extension://*",
+                    "https://*.youtube.com"
+                ));
                 config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 config.setAllowedHeaders(java.util.List.of("*"));
                 config.setAllowCredentials(true);

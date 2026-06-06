@@ -17,4 +17,5 @@ public class PackageRequest {
     BigDecimal price;
     Integer durationDays;
     Integer aiLimitPerDay;
+    String planType;
 }

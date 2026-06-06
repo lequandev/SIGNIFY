@@ -1,0 +1,280 @@
+/* =========================================
+   SIGNIFY - THEME CHÍNH THỨC (BLUE/PURPLE GRADIENT)
+   Mã màu chuẩn: #2563EB - #4F46E5 - #7C3AED
+   ========================================= */
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  /* Màu nền đen pha chút xanh navy cực thẫm để tôn gradient lên */
+  background: #0B0F19; 
+  color: #FFFFFF;
+}
+
+.container {
+  padding: 24px 18px;
+}
+
+/* ==============================
+   Header (Chỉ chứa Logo, đã bỏ chữ)
+   ============================== */
+.header-container {
+  display: flex;
+  flex-direction: column; 
+  align-items: center; 
+  margin-bottom: 24px;
+}
+
+.app-logo {
+  width: auto; /* Để chiều rộng tự động theo chiều cao */
+  
+  /* UPDATE: Tăng giá trị này lên để logo to hơn */
+  height: 70px; /* Cũ là 50px, tôi tăng lên 70px nhé */
+  
+  object-fit: contain; /* Đảm bảo logo không bị méo */
+}
+
+/* ==============================
+   Thanh trạng thái
+   ============================== */
+.status-box {
+  background: #131B2B; /* Xám xanh navy */
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid #1E293B;
+  justify-content: space-between;
+}
+
+.status-dot {
+  width: 10px; height: 10px;
+  background-color: #EF4444; /* Đỏ mặc định */
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  flex-shrink: 0;
+}
+
+/* Đang dịch: Sáng màu Xanh Dương (#2563EB) */
+.status-dot.active {
+  background-color: #2563EB; 
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.6); 
+}
+
+/* AI đang chờ: Nhấp nháy màu Tím (#7C3AED) */
+.status-dot.ai-waiting {
+  background-color: #7C3AED; 
+  animation: purplePulse 1.5s infinite; 
+  box-shadow: 0 0 10px rgba(124, 58, 237, 0.6);
+}
+
+@keyframes purplePulse {
+  0% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+#statusText {
+  color: #94A3B8; 
+  font-size: 14px;
+}
+
+/* Bộ đếm giây: Màu tím sáng */
+#statusTimeCount {
+  font-family: 'Courier New', Courier, monospace; 
+  font-weight: bold;
+  font-size: 14px;
+  color: #7C3AED; 
+}
+
+/* ==============================
+   Khung Avatar
+   ============================== */
+.avatar-frame {
+  background: #131B2B; 
+  border-radius: 16px; 
+  padding: 10px; 
+  margin-bottom: 24px;
+  border: 1px solid #1E293B;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.3);
+}
+
+.video-container {
+  position: relative; width: 100%; aspect-ratio: 16 / 9;
+  border-radius: 12px; background: #000; overflow: hidden;
+}
+
+.avatar-video {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%; object-fit: cover;
+  transition: opacity 0.05s ease;
+}
+
+.hidden { opacity: 0; z-index: 1; pointer-events: none; }
+.active { opacity: 1; z-index: 2; }
+
+/* Subtitle Display */
+.subtitle-container {
+  margin-top: 14px;
+  text-align: center;
+  min-height: 52px;
+  padding: 10px 14px;
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 10px;
+  border: 1px solid rgba(79, 70, 229, 0.2);
+  transition: all 0.3s ease;
+}
+
+/* Container chứa tất cả word chips */
+.word-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+  align-items: center;
+  min-height: 32px;
+}
+
+/* Mỗi từ quan trọng hiển thị dưới dạng chip */
+.word-chip {
+  display: inline-block;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.25), rgba(124, 58, 237, 0.25));
+  border: 1px solid rgba(124, 58, 237, 0.5);
+  border-radius: 20px;
+  color: #E2E8F0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  animation: chipAppear 0.2s ease-out both;
+  text-shadow: 0 0 8px rgba(124, 58, 237, 0.4);
+}
+
+@keyframes chipAppear {
+  from { opacity: 0; transform: translateY(4px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Chữ Italic khi chưa có phụ đề */
+.subtitle-placeholder {
+  color: #4B5563;
+  font-size: 13px;
+  font-style: italic;
+  letter-spacing: 0.5px;
+}
+
+/* ==============================
+   Paywall Overlay
+   ============================== */
+.premium-overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(11, 15, 25, 0.9);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 10; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; text-align: center;
+  transition: opacity 0.3s ease; pointer-events: auto;
+}
+
+.premium-content h3 { 
+  margin: 0 0 10px; 
+  color: #7C3AED; /* Điểm nhấn tím */
+  font-size: 20px; 
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.premium-content p { font-size: 13px; color: #94A3B8; margin: 0 0 20px; padding: 0 24px; }
+
+/* ==============================
+   Cụm Nút Bấm
+   ============================== */
+.buttons { 
+  display: flex; 
+  gap: 10px; 
+  justify-content: space-between; 
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+button {
+  padding: 14px 10px; 
+  border: none; 
+  border-radius: 12px; 
+  cursor: pointer; 
+  font-size: 14px; 
+  font-weight: 700; 
+  flex: 1; 
+  text-transform: uppercase; 
+  letter-spacing: 1px;
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  transform: translateY(-1px); 
+}
+
+/* NÚT DỊCH CHÍNH (Đúng mã Gradient của Lead) */
+.btn-primary { 
+  background: linear-gradient(135deg, #2563EB, #4F46E5, #7C3AED); 
+  color: #FFFFFF; 
+}
+.btn-primary:hover {
+  box-shadow: 0 0 15px rgba(79, 70, 229, 0.5); /* Sáng lên màu xanh tím */
+}
+
+/* Nút Dịch khi đang chạy (Khóa nút, viền tím) */
+.btn-primary.running { 
+  background: transparent; 
+  color: #7C3AED; 
+  border: 2px solid #7C3AED;
+  pointer-events: none; 
+}
+
+/* NÚT DỊCH LẠI (Trong suốt, viền xanh tím) */
+.btn-secondary { 
+  background: transparent; 
+  color: #FFFFFF; 
+  border: 1px solid #4F46E5; 
+}
+.btn-secondary:hover {
+  background: rgba(79, 70, 229, 0.15);
+  border-color: #7C3AED;
+}
+
+/* NÚT NÂNG CẤP (Viền xanh dương) */
+.btn-premium { 
+  background: transparent; 
+  color: #4F46E5; 
+  border: 1px solid #2563EB;
+}
+.btn-premium:hover {
+  background: rgba(37, 99, 235, 0.15);
+  border-color: #4F46E5;
+}
+
+/* Nút nâng cấp to bên trong Paywall */
+#upgradeBtn { 
+  background: linear-gradient(135deg, #2563EB, #4F46E5, #7C3AED); 
+  color: #FFFFFF; 
+  padding: 12px 24px; 
+  font-size: 14px;
+}
+#upgradeBtn:hover {
+  box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
+}
+
+/* ==============================
+   Slogan Text
+   ============================== */
+.slogan-text {
+  text-align: center;
+  font-size: 13px;
+  font-weight: 300; 
+  color: #64748B; 
+  letter-spacing: 1px;
+  margin-top: 10px;
+  font-style: italic;
+  text-transform: uppercase; 
+}
+

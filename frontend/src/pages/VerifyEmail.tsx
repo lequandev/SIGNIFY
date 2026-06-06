@@ -42,18 +42,11 @@ const VerifyEmail: React.FC = () => {
         className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 p-10 text-center"
       >
         <Link to="/" className="flex flex-col items-center mb-10 group">
-          <div className="w-14 h-14 bg-[#2563EB] rounded-2xl flex items-center justify-center shadow-xl shadow-[#2563EB]/20 group-hover:scale-105 transition-transform mb-4">
-            <img 
-              src="/logo_removebg.png" 
-              alt="Signify" 
-              className="w-10 h-10 object-contain brightness-0 invert" 
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.parentElement?.insertAdjacentHTML('beforeend', '<div class="text-white font-black text-2xl">S</div>');
-              }}
-            />
-          </div>
-          <span className="text-2xl font-black tracking-tight text-slate-900 uppercase">SIGNIFY</span>
+          <img 
+            src="/logo_removebg.png" 
+            alt="Signify Logo" 
+            className="h-20 object-contain group-hover:scale-105 transition-transform mb-4"
+          />
         </Link>
 
         {status === 'loading' && (
