@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIGNIFY</title>
+  <link rel="stylesheet" href="sidepanel.css" />
+</head>
+<body>
+  <div class="container">
+    
+    <div class="header-container">
+      <img id="appLogo" src="logo_removebg.png" alt="SIGNIFY Logo" class="app-logo">
+      </div>
+
+    <div class="status-box">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <span class="status-dot"></span>
+        <span id="statusText">Bấm bắt đầu...</span>
+      </div>
+      <span id="statusTimeCount"></span>
+    </div>
+
+    <div class="avatar-frame">
+      <div class="video-container">
+        <video id="avatarVideo1" class="avatar-video active" muted playsinline></video>
+        <video id="avatarVideo2" class="avatar-video hidden" muted playsinline></video>
+        
+        <div id="premiumOverlay" class="premium-overlay hidden">
+          <div class="premium-content">
+            <h3>👑 YÊU CẦU NÂNG CẤP</h3>
+            <p id="premiumMessage">Nâng cấp lên gói PRO để dịch video không giới hạn!</p>
+            <button id="upgradeBtn">Nâng cấp ngay</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Real-time Subtitle - Word Chips for Deaf Language -->
+      <div class="subtitle-container">
+        <div id="wordChipsContainer" class="word-chips-container">
+          <span class="subtitle-placeholder">Chờ phụ đề...</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="buttons">
+      <button id="startBtn" class="btn-primary">Dịch</button>
+      <button id="restartBtn" class="btn-secondary">Dịch lại</button>
+      <button id="upgradeBtnMain" class="btn-premium">Nâng cấp</button>
+    </div>
+    
+    
+    <div class="slogan-text">Connection beyond sound</div>
+
+  </div> <script src="sidepanel.js"></script>
+</body>
+</html>

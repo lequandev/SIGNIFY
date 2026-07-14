@@ -19,10 +19,11 @@ const Header: React.FC = () => {
     <nav className="flex items-center justify-between py-6 max-w-6xl mx-auto px-8 md:px-16 w-full">
       <div className="flex items-center gap-2">
         <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-[#2563EB] rounded-lg flex items-center justify-center shadow-md shadow-[#2563EB]/20 group-hover:scale-105 transition-transform">
-            <Users className="text-white w-5 h-5" />
-          </div>
-          <span className="text-xl font-bold tracking-tight text-slate-900 uppercase">SIGNIFY</span>
+          <img 
+            src="/logo_removebg.png" 
+            alt="Signify Logo" 
+            className="h-10 object-contain group-hover:scale-105 transition-transform"
+          />
         </Link>
       </div>
       <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
