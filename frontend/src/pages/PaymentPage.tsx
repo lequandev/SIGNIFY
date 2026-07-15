@@ -1,21 +1,535 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, CreditCard, Shield, Lock, Check, ArrowLeft, QrCode, Copy, X, AlertCircle, Loader2 } from 'lucide-react';
+import { Shield, Lock, Check, ArrowLeft, QrCode, Copy, X, AlertCircle, Loader2, CreditCard, Clock } from 'lucide-react';
 import api from '../services/api';
 import { QRCodeSVG } from 'qrcode.react';
 
+// ─── Design tokens (mirrors LandingPage) ─────────────────────────────────────
+
+const PaymentStyles: React.FC = () => (
+  <style>{`
+    @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Poppins:wght@400;500;600;700;800&display=swap');
+
+    .pay-root {
+      min-height: 100vh;
+      background: linear-gradient(155deg, #f0f9ff 0%, #eff6ff 40%, #f0f9ff 100%);
+      padding: 3rem 1rem 4rem;
+      font-family: 'Open Sans', system-ui, sans-serif;
+      position: relative;
+    }
+    .pay-orb {
+      position: fixed;
+      border-radius: 50%;
+      pointer-events: none;
+      filter: blur(80px);
+      z-index: 0;
+    }
+    .pay-orb-1 {
+      top: -5%;
+      left: -5%;
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(37,99,235,0.10) 0%, transparent 70%);
+    }
+    .pay-orb-2 {
+      bottom: -5%;
+      right: -5%;
+      width: 350px; height: 350px;
+      background: radial-gradient(circle, rgba(29,78,216,0.08) 0%, transparent 70%);
+    }
+
+    .pay-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    .pay-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2.5rem;
+    }
+    .pay-back {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: #3b82f6;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      text-decoration: none;
+      transition: color 200ms ease;
+    }
+    .pay-back:hover { color: #2563EB; }
+    .pay-back-icon {
+      width: 34px; height: 34px;
+      background: rgba(255,255,255,0.85);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(37,99,235,0.15);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 200ms ease, box-shadow 200ms ease;
+    }
+    .pay-back:hover .pay-back-icon {
+      border-color: rgba(37,99,235,0.4);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.15);
+    }
+
+    /* Layout */
+    .pay-grid {
+      display: grid;
+      gap: 2rem;
+    }
+    @media (min-width: 1024px) {
+      .pay-grid { grid-template-columns: 1fr 360px; gap: 2.5rem; }
+    }
+
+    /* Glass card base */
+    .pay-card {
+      background: rgba(255,255,255,0.92);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(37,99,235,0.12);
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(37,99,235,0.10);
+    }
+
+    /* Main payment panel */
+    .pay-main {
+      min-height: 520px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem;
+    }
+
+    /* Loading state */
+    .pay-loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.25rem;
+      text-align: center;
+    }
+    .pay-loading-ring {
+      position: relative;
+    }
+    .pay-loading-ring::before {
+      content: '';
+      position: absolute;
+      inset: -8px;
+      border-radius: 50%;
+      background: rgba(37,99,235,0.08);
+      filter: blur(16px);
+    }
+    .pay-loading-title {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin: 0;
+    }
+    .pay-loading-desc { font-size: 0.875rem; color: #1e40af; opacity: 0.8; margin: 0; max-width: 320px; line-height: 1.6; }
+
+    /* Error state */
+    .pay-error-wrap { display: flex; flex-direction: column; align-items: center; gap: 1.25rem; text-align: center; max-width: 320px; }
+    .pay-error-icon {
+      width: 72px; height: 72px;
+      background: rgba(239,68,68,0.08);
+      border: 1px solid rgba(239,68,68,0.15);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pay-error-title { font-family: 'Poppins', sans-serif; font-size: 1.375rem; font-weight: 700; color: #1e3a8a; margin: 0; }
+    .pay-error-msg { font-size: 0.875rem; color: #dc2626; font-weight: 500; margin: 0; }
+    .pay-btn-retry {
+      width: 100%;
+      padding: 0.875rem;
+      background: linear-gradient(135deg, #2563EB 0%, #1D4ED8 100%);
+      color: white;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 8px 24px rgba(37,99,235,0.35);
+      transition: filter 180ms ease, transform 180ms ease;
+    }
+    .pay-btn-retry:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+    /* QR section */
+    .pay-qr-section { width: 100%; display: flex; flex-direction: column; gap: 2rem; }
+    .pay-qr-heading {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.375rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      margin: 0;
+    }
+    .pay-qr-sub { font-size: 0.875rem; color: #1e40af; opacity: 0.8; margin: 0.25rem 0 0; }
+
+    .pay-qr-grid {
+      display: grid;
+      gap: 2rem;
+    }
+    @media (min-width: 640px) { .pay-qr-grid { grid-template-columns: 1fr 1fr; gap: 2.5rem; } }
+
+    /* QR code box */
+    .pay-qr-box {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+    }
+    .pay-qr-frame {
+      position: relative;
+      padding: 1.25rem;
+      background: rgba(238,242,255,0.6);
+      border-radius: 20px;
+      border: 1px solid rgba(37,99,235,0.12);
+    }
+    .pay-qr-inner {
+      background: white;
+      padding: 1rem;
+      border-radius: 14px;
+      box-shadow: 0 4px 16px rgba(37,99,235,0.08);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .pay-qr-live-badge {
+      position: absolute;
+      top: -0.75rem;
+      right: -0.75rem;
+      padding: 0.25rem 0.75rem;
+      background: linear-gradient(135deg, #1e3a8a, #2563EB);
+      color: white;
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+      animation: livePulse 2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .pay-timer {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: rgba(37,99,235,0.06);
+      border: 1px solid rgba(37,99,235,0.12);
+      border-radius: 9999px;
+      font-size: 0.8125rem;
+      font-weight: 700;
+      color: #2563EB;
+    }
+
+    /* Transfer details */
+    .pay-details {
+      background: rgba(238,242,255,0.5);
+      border: 1px solid rgba(37,99,235,0.10);
+      border-radius: 18px;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+    .pay-detail-row { display: flex; flex-direction: column; gap: 0.25rem; }
+    .pay-detail-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: #3b82f6;
+      opacity: 0.7;
+    }
+    .pay-detail-value-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+    }
+    .pay-detail-value {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: #1e3a8a;
+      font-family: 'Poppins', sans-serif;
+    }
+    .pay-detail-value-large {
+      font-size: 1.375rem;
+      font-weight: 800;
+      color: #2563EB;
+      font-family: 'Poppins', sans-serif;
+    }
+    .pay-detail-desc-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      background: rgba(37,99,235,0.06);
+      border: 1px solid rgba(37,99,235,0.12);
+      padding: 0.75rem 1rem;
+      border-radius: 12px;
+    }
+    .pay-detail-desc-text {
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #2563EB;
+      font-family: 'Poppins', monospace;
+    }
+    .pay-copy-btn {
+      width: 34px; height: 34px;
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(37,99,235,0.12);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #93c5fd;
+      transition: color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+      flex-shrink: 0;
+    }
+    .pay-copy-btn:hover { color: #2563EB; border-color: rgba(37,99,235,0.3); box-shadow: 0 4px 12px rgba(37,99,235,0.12); }
+
+    /* Security notice */
+    .pay-security {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      background: rgba(16,185,129,0.06);
+      border: 1px solid rgba(16,185,129,0.15);
+      border-radius: 14px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #065f46;
+      line-height: 1.55;
+    }
+    .pay-security-icon {
+      width: 38px; height: 38px;
+      background: white;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #10b981;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(16,185,129,0.12);
+    }
+
+    /* Trust icons */
+    .pay-trust {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 2rem;
+      padding: 1.5rem 0;
+      opacity: 0.25;
+      transition: opacity 500ms ease;
+    }
+    .pay-trust:hover { opacity: 0.6; }
+
+    /* ── Order summary sidebar ── */
+    .pay-summary {
+      position: sticky;
+      top: 1.5rem;
+    }
+    .pay-summary-card {
+      background: linear-gradient(145deg, #1e3a8a 0%, #1e3a8a 50%, #1e3a8a 100%);
+      border-radius: 24px;
+      padding: 2rem;
+      color: white;
+      box-shadow: 0 24px 64px rgba(30,27,75,0.35);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .pay-summary-title {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: rgba(191,219,254,0.7);
+      margin: 0 0 1.5rem;
+    }
+    .pay-plan-box {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .pay-plan-label {
+      font-size: 0.65rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: rgba(191,219,254,0.5);
+      margin: 0 0 0.5rem;
+    }
+    .pay-plan-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      background: linear-gradient(135deg, #2563EB, #1D4ED8);
+      border-radius: 9999px;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: white;
+      margin-bottom: 0.5rem;
+    }
+    .pay-plan-name {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: white;
+      margin: 0 0 0.25rem;
+    }
+    .pay-plan-duration { font-size: 0.75rem; font-weight: 600; color: rgba(191,219,254,0.5); text-transform: uppercase; letter-spacing: 0.08em; }
+
+    .pay-line { display: flex; justify-content: space-between; font-size: 0.8125rem; font-weight: 600; }
+    .pay-line-label { color: rgba(191,219,254,0.5); text-transform: uppercase; letter-spacing: 0.08em; }
+    .pay-line-value { color: rgba(255,255,255,0.85); }
+    .pay-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 1rem 0; }
+    .pay-total-row { display: flex; justify-content: space-between; align-items: baseline; }
+    .pay-total-label { font-family: 'Poppins', sans-serif; font-size: 0.875rem; font-weight: 700; color: rgba(191,219,254,0.7); text-transform: uppercase; letter-spacing: 0.08em; }
+    .pay-total-amount {
+      font-family: 'Poppins', sans-serif;
+      font-size: 2rem;
+      font-weight: 900;
+      color: #93c5fd;
+      letter-spacing: -0.03em;
+    }
+
+    .pay-benefit-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: rgba(191,219,254,0.55);
+      line-height: 1.5;
+    }
+    .pay-benefit-icon {
+      width: 24px; height: 24px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .pay-cancel-btn {
+      width: 100%;
+      padding: 0.875rem;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      color: rgba(255,255,255,0.5);
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      transition: background 180ms ease, color 180ms ease, border-color 180ms ease;
+    }
+    .pay-cancel-btn:hover {
+      background: rgba(239,68,68,0.1);
+      color: #fca5a5;
+      border-color: rgba(239,68,68,0.2);
+    }
+
+    /* Footer note */
+    .pay-footer-note {
+      text-align: center;
+      margin-top: 3rem;
+      font-size: 0.7rem;
+      color: #3b82f6;
+      opacity: 0.55;
+    }
+    .pay-footer-note a { color: inherit; text-decoration: underline; }
+    .pay-footer-note a:hover { opacity: 0.8; }
+
+    /* ── Status modal ── */
+    .pay-modal-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      background: rgba(30,27,75,0.55);
+      backdrop-filter: blur(16px);
+    }
+    .pay-modal-card {
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(37,99,235,0.12);
+      border-radius: 24px;
+      padding: 3rem 2.5rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      box-shadow: 0 40px 100px rgba(30,27,75,0.3);
+    }
+    .pay-modal-icon {
+      width: 88px; height: 88px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto;
+    }
+    .pay-modal-title {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #1e3a8a;
+      margin: 0;
+    }
+    .pay-modal-desc { font-size: 0.9rem; color: #1e40af; opacity: 0.8; margin: 0; line-height: 1.65; }
+    .pay-progress-bar { width: 100%; height: 4px; background: rgba(37,99,235,0.08); border-radius: 9999px; overflow: hidden; }
+    .pay-progress-fill { height: 100%; border-radius: 9999px; }
+
+    /* Skeleton */
+    .pay-skeleton { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+    .pay-skeleton-box { border-radius: 14px; background: linear-gradient(90deg, rgba(37,99,235,0.06) 25%, rgba(37,99,235,0.10) 50%, rgba(37,99,235,0.06) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; }
+    @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  `}</style>
+);
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 const PaymentPage = () => {
-  console.log('PaymentPage mounted');
   const location = useLocation();
-  console.log('Location state:', location.state);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  
-  // Detect if we've been redirected back from PayOS
-  const isSuccess = location.pathname.includes('payment-success');
-  const isCancel = location.pathname.includes('payment-cancel');
-  const orderCodeFromUrl = searchParams.get('orderCode');
 
   const selectedPlan = location.state?.plan || null;
 
@@ -23,15 +537,12 @@ const PaymentPage = () => {
   const [paymentData, setPaymentData] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(600); // 10 minutes
+  const [timeLeft, setTimeLeft] = useState<number>(600);
   const [status, setStatus] = useState<'success' | 'error' | 'cancel' | null>(null);
 
   useEffect(() => {
-    if (location.pathname.includes('payment-success')) {
-      setStatus('success');
-    } else if (location.pathname.includes('payment-cancel')) {
-      setStatus('cancel');
-    }
+    if (location.pathname.includes('payment-success')) setStatus('success');
+    else if (location.pathname.includes('payment-cancel')) setStatus('cancel');
   }, [location.pathname]);
 
   const formatTime = (seconds: number) => {
@@ -42,24 +553,19 @@ const PaymentPage = () => {
 
   useEffect(() => {
     if (status === 'success') {
-      const timer = setTimeout(() => navigate('/'), 4000);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => navigate('/'), 4000);
+      return () => clearTimeout(t);
     }
     if (status === 'cancel' || status === 'error') {
-      const timer = setTimeout(() => {
-        setStatus(null);
-        navigate('/packages');
-      }, 4000);
-      return () => clearTimeout(timer);
+      const t = setTimeout(() => { setStatus(null); navigate('/packages'); }, 4000);
+      return () => clearTimeout(t);
     }
   }, [status, navigate]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (paymentData && timeLeft > 0 && !status) {
-      timer = setInterval(() => {
-        setTimeLeft((prev) => prev - 1);
-      }, 1000);
+      timer = setInterval(() => setTimeLeft((p) => p - 1), 1000);
     } else if (timeLeft === 0 && !status && paymentData) {
       setStatus('error');
       setError('Phiên thanh toán đã hết hạn. Vui lòng thử lại.');
@@ -68,34 +574,19 @@ const PaymentPage = () => {
     return () => clearInterval(timer);
   }, [paymentData, timeLeft, status]);
 
-  // Status Polling
   useEffect(() => {
     let pollInterval: NodeJS.Timeout;
-
     const checkStatus = async () => {
       if (!paymentData?.orderCode || status) return;
-
       try {
         const response = await api.get(`/payments/check-status/${paymentData.orderCode}`);
         const currentStatus = response.data.status;
-
-        if (currentStatus === 'paid') {
-          navigate('/payment-success');
-        } else if (currentStatus === 'cancelled') {
-          navigate('/payment-cancel');
-        }
-      } catch (err) {
-        console.error('Polling Error:', err);
-      }
+        if (currentStatus === 'paid') navigate('/payment-success');
+        else if (currentStatus === 'cancelled') navigate('/payment-cancel');
+      } catch (err) { console.error('Polling Error:', err); }
     };
-
-    if (paymentData && !status) {
-      pollInterval = setInterval(checkStatus, 5000);
-    }
-
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-    };
+    if (paymentData && !status) pollInterval = setInterval(checkStatus, 5000);
+    return () => { if (pollInterval) clearInterval(pollInterval); };
   }, [paymentData, status]);
 
   const copyToClipboard = (text: string, field: string) => {
@@ -105,262 +596,217 @@ const PaymentPage = () => {
   };
 
   const handleCreatePayment = async () => {
-    if (!selectedPlan) {
-      setError('Vui lòng chọn gói dịch vụ trước.');
-      return;
-    }
-
+    if (!selectedPlan) { setError('Vui lòng chọn gói dịch vụ trước.'); return; }
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post('/payments/create-link', { 
+      const response = await api.post('/payments/create-link', {
         packageId: selectedPlan.id || selectedPlan._id,
-        name: selectedPlan.name
+        name: selectedPlan.name,
       });
-      
       setPaymentData(response.data);
-      setTimeLeft(600); 
+      setTimeLeft(600);
     } catch (err: any) {
-      console.error('Payment Error:', err);
-      setError(err.response?.data?.message || err.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại sau.');
-      
-      if (err.response?.status === 401) {
-        navigate('/login', { state: { from: location } });
-      }
+      setError(err.response?.data?.message || err.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.');
+      if (err.response?.status === 401) navigate('/login', { state: { from: location } });
     } finally {
       setLoading(false);
     }
   };
 
-  // Automatically initiate payment link creation on mount if not a redirect
   useEffect(() => {
-    if (!status && selectedPlan) {
-      handleCreatePayment();
-    } else if (!status && !selectedPlan) {
-      navigate('/packages');
-    }
+    if (!status && selectedPlan) handleCreatePayment();
+    else if (!status && !selectedPlan) navigate('/packages');
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 py-12 px-4 font-sans selection:bg-[#2563EB] selection:text-white">
-      <div className="max-w-5xl mx-auto">
+    <div className="pay-root">
+      <PaymentStyles />
+      <div aria-hidden="true" className="pay-orb pay-orb-1" />
+      <div aria-hidden="true" className="pay-orb pay-orb-2" />
+
+      <div className="pay-container">
         {/* Header */}
-        <div className="flex items-center justify-between mb-12">
-          <Link to="/packages" className="flex items-center gap-2 group">
-            <ArrowLeft className="w-5 h-5 text-slate-400 group-hover:text-[#2563EB] transition-colors" />
-            <span className="text-sm font-black text-slate-500 group-hover:text-[#2563EB] transition-colors uppercase tracking-wider">Quay lại Gói Dịch Vụ</span>
+        <div className="pay-header">
+          <Link to="/packages" className="pay-back">
+            <div className="pay-back-icon"><ArrowLeft className="w-4 h-4" /></div>
+            Quay lại Gói Dịch Vụ
           </Link>
-          <div className="flex items-center gap-2 group">
-            <div className="w-10 h-10 bg-[#2563EB] rounded-2xl flex items-center justify-center shadow-xl shadow-[#2563EB]/20 group-hover:scale-110 transition-transform">
-              <img src="/logo_removebg.png" alt="Signify" className="w-6 h-6 brightness-0 invert" />
-            </div>
-            <span className="text-xl font-black tracking-tight text-slate-900 uppercase">SIGNIFY</span>
-          </div>
+          <img src="/logo_removebg.png" alt="Signify Logo" style={{ height: 56, objectFit: 'contain' }} />
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-12">
-          {/* Left Column: Payment Details */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="pay-grid">
+          {/* ── Left: Payment panel ── */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <motion.div
+              className="pay-card pay-main"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-[3rem] p-10 shadow-2xl border border-slate-100 min-h-[550px] flex flex-col items-center justify-center text-center relative overflow-hidden"
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
             >
               {loading ? (
-                <div className="space-y-6">
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-[#2563EB]/10 blur-2xl rounded-full" />
-                    <Loader2 className="w-16 h-16 text-[#2563EB] animate-spin mx-auto relative z-10" />
+                <div className="pay-loading">
+                  <div className="pay-loading-ring">
+                    <Loader2 className="w-14 h-14 text-indigo-500 animate-spin" style={{ position: 'relative', zIndex: 1 }} />
                   </div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">Đang tạo mã QR...</h2>
-                    <p className="text-slate-500 font-medium px-8">Vui lòng đợi trong khi chúng tôi thiết lập giao dịch an toàn với PayOS.</p>
+                  <div>
+                    <p className="pay-loading-title">Đang tạo mã QR...</p>
+                    <p className="pay-loading-desc">Vui lòng đợi trong khi chúng tôi thiết lập giao dịch an toàn với PayOS.</p>
                   </div>
                 </div>
               ) : error ? (
-                <div className="space-y-6 max-w-sm">
-                  <div className="w-20 h-20 bg-red-50 text-red-500 rounded-[2rem] flex items-center justify-center mx-auto shadow-inner border border-red-100">
-                    <Shield className="w-10 h-10" />
+                <div className="pay-error-wrap">
+                  <div className="pay-error-icon">
+                    <Shield className="w-9 h-9 text-red-500" />
                   </div>
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-black text-slate-900">Lỗi Thanh toán</h2>
-                    <p className="text-red-500 font-bold">{error}</p>
-                  </div>
-                  <button 
-                    onClick={handleCreatePayment}
-                    className="w-full bg-[#2563EB] text-white px-8 py-4 rounded-2xl font-black hover:bg-[#4F46E5] transition-all shadow-xl shadow-[#2563EB]/30"
-                  >
-                    Thử lại
-                  </button>
+                  <p className="pay-error-title">Lỗi Thanh toán</p>
+                  <p className="pay-error-msg">{error}</p>
+                  <button onClick={handleCreatePayment} className="pay-btn-retry">Thử lại</button>
                 </div>
               ) : paymentData ? (
-                <div className="w-full space-y-10">
-                  <div className="space-y-3">
-                    <h2 className="text-3xl font-black text-slate-900 flex items-center justify-center gap-3 tracking-tight">
-                      <QrCode className="w-8 h-8 text-[#2563EB]" />
+                <div className="pay-qr-section">
+                  <div>
+                    <h2 className="pay-qr-heading">
+                      <QrCode className="w-6 h-6 text-indigo-500" />
                       Quét mã để thanh toán
                     </h2>
-                    <p className="text-slate-500 font-medium">Sử dụng ứng dụng ngân hàng của bạn để quét mã QR bên dưới.</p>
+                    <p className="pay-qr-sub">Sử dụng ứng dụng ngân hàng của bạn để quét mã QR bên dưới.</p>
                   </div>
 
-                  <div className="grid md:grid-cols-2 gap-12 w-full pt-4">
-                    {/* QR Code Column */}
-                    <div className="space-y-6 flex flex-col items-center">
-                      <div className="relative group p-6 bg-slate-50 rounded-[2.5rem] border-2 border-slate-100 shadow-inner">
-                        <div className="bg-white p-4 rounded-[1.5rem] shadow-sm flex items-center justify-center">
-                          <QRCodeSVG 
-                            value={paymentData.qrCode}
-                            size={224}
-                            level="H"
-                            includeMargin={false}
-                            className="rounded-lg"
-                          />
+                  <div className="pay-qr-grid">
+                    {/* QR column */}
+                    <div className="pay-qr-box">
+                      <div className="pay-qr-frame">
+                        <div className="pay-qr-inner">
+                          <QRCodeSVG value={paymentData.qrCode} size={200} level="H" includeMargin={false} />
                         </div>
-                        <div className="absolute -top-3 -right-3 px-4 py-2 bg-slate-900 text-white rounded-2xl text-[10px] font-black tracking-widest uppercase shadow-xl animate-pulse">
-                          Live QR
-                        </div>
+                        <div className="pay-qr-live-badge">Live QR</div>
                       </div>
-                      <div className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#2563EB]/5 text-[#2563EB] rounded-full text-sm font-black border border-[#2563EB]/10 shadow-sm">
+                      <div className="pay-timer">
+                        <Clock className="w-3.5 h-3.5" />
                         Hết hạn sau: {formatTime(timeLeft)}
                       </div>
                     </div>
 
-                    {/* Transfer Details Column */}
-                    <div className="space-y-4 text-left">
-                      <div className="bg-slate-50 rounded-[2.5rem] p-6 border border-slate-100 space-y-6 shadow-inner">
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Chủ tài khoản</label>
-                          <div className="flex items-center justify-between group">
-                            <span className="text-sm font-black text-slate-900">{paymentData.accountName}</span>
-                            <button onClick={() => copyToClipboard(paymentData.accountName, 'name')} className="p-2 bg-white rounded-xl shadow-sm text-slate-400 hover:text-[#2563EB] transition-all">
-                              {copiedField === 'name' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                          </div>
+                    {/* Details column */}
+                    <div className="pay-details">
+                      <div className="pay-detail-row">
+                        <span className="pay-detail-label">Chủ tài khoản</span>
+                        <div className="pay-detail-value-row">
+                          <span className="pay-detail-value">{paymentData.accountName}</span>
+                          <button className="pay-copy-btn" onClick={() => copyToClipboard(paymentData.accountName, 'name')}>
+                            {copiedField === 'name' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Số tài khoản (Vietcombank)</label>
-                          <div className="flex items-center justify-between group">
-                            <span className="text-lg font-black text-slate-900 font-mono tracking-tight">{paymentData.accountNumber}</span>
-                            <button onClick={() => copyToClipboard(paymentData.accountNumber, 'acc')} className="p-2 bg-white rounded-xl shadow-sm text-slate-400 hover:text-[#2563EB] transition-all">
-                              {copiedField === 'acc' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                          </div>
+                      </div>
+                      <div className="pay-detail-row">
+                        <span className="pay-detail-label">Số tài khoản (Vietcombank)</span>
+                        <div className="pay-detail-value-row">
+                          <span className="pay-detail-value" style={{ fontFamily: 'monospace', fontSize: '1.0625rem' }}>{paymentData.accountNumber}</span>
+                          <button className="pay-copy-btn" onClick={() => copyToClipboard(paymentData.accountNumber, 'acc')}>
+                            {copiedField === 'acc' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
-
-                        <div className="space-y-1.5">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Số tiền</label>
-                          <div className="flex items-center justify-between">
-                            <span className="text-2xl font-black text-[#2563EB]">₫{paymentData.amount.toLocaleString('vi-VN')}</span>
-                            <button onClick={() => copyToClipboard(paymentData.amount.toString(), 'amount')} className="p-2 bg-white rounded-xl shadow-sm text-slate-400 hover:text-[#2563EB] transition-all">
-                              {copiedField === 'amount' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                          </div>
+                      </div>
+                      <div className="pay-detail-row">
+                        <span className="pay-detail-label">Số tiền</span>
+                        <div className="pay-detail-value-row">
+                          <span className="pay-detail-value-large">₫{paymentData.amount.toLocaleString('vi-VN')}</span>
+                          <button className="pay-copy-btn" onClick={() => copyToClipboard(paymentData.amount.toString(), 'amount')}>
+                            {copiedField === 'amount' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
-
-                        <div className="space-y-1.5 pt-2">
-                          <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Nội dung chuyển khoản</label>
-                          <div className="flex items-center justify-between bg-[#2563EB]/5 p-4 rounded-2xl border border-[#2563EB]/10 group">
-                            <span className="text-sm font-black text-[#2563EB] tracking-wider">{paymentData.description}</span>
-                            <button onClick={() => copyToClipboard(paymentData.description, 'content')} className="p-2 bg-white rounded-xl shadow-sm text-slate-400 hover:text-[#2563EB] transition-all">
-                              {copiedField === 'content' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                            </button>
-                          </div>
+                      </div>
+                      <div className="pay-detail-row">
+                        <span className="pay-detail-label">Nội dung chuyển khoản</span>
+                        <div className="pay-detail-desc-box">
+                          <span className="pay-detail-desc-text">{paymentData.description}</span>
+                          <button className="pay-copy-btn" onClick={() => copyToClipboard(paymentData.description, 'content')}>
+                            {copiedField === 'content' ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="bg-emerald-50 text-emerald-700 p-5 rounded-[2rem] text-sm font-bold flex items-center gap-4 max-w-3xl mx-auto border border-emerald-100">
-                    <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shrink-0 shadow-sm text-emerald-500">
-                      <Shield className="w-5 h-5" />
-                    </div>
-                    <span className="text-left">Giao dịch được bảo mật bởi PayOS. Sau khi thanh toán thành công, hệ thống sẽ tự động cập nhật trạng thái trong giây lát.</span>
+                  <div className="pay-security">
+                    <div className="pay-security-icon"><Shield className="w-5 h-5" /></div>
+                    Giao dịch được bảo mật bởi PayOS. Sau khi thanh toán thành công, hệ thống sẽ tự động cập nhật trạng thái trong giây lát.
                   </div>
                 </div>
               ) : (
-                <div className="animate-pulse flex flex-col items-center">
-                  <div className="w-16 h-16 bg-slate-200 rounded-2xl mb-4" />
-                  <div className="w-48 h-6 bg-slate-200 rounded-full mb-2" />
-                  <div className="w-32 h-4 bg-slate-100 rounded-full" />
+                <div className="pay-skeleton">
+                  <div className="pay-skeleton-box" style={{ width: 64, height: 64, borderRadius: 16 }} />
+                  <div className="pay-skeleton-box" style={{ width: 220, height: 20, borderRadius: 8 }} />
+                  <div className="pay-skeleton-box" style={{ width: 160, height: 14, borderRadius: 8 }} />
                 </div>
               )}
             </motion.div>
 
-            <div className="flex items-center justify-center gap-12 py-8 opacity-30 grayscale hover:grayscale-0 transition-all duration-700">
-              <Shield className="w-10 h-10" />
-              <Lock className="w-10 h-10" />
-              <CreditCard className="w-10 h-10" />
+            {/* Trust icons */}
+            <div className="pay-trust">
+              <Shield className="w-8 h-8 text-indigo-400" />
+              <Lock className="w-8 h-8 text-indigo-400" />
+              <CreditCard className="w-8 h-8 text-indigo-400" />
             </div>
           </div>
 
-          {/* Right Column: Order Summary */}
-          <div className="space-y-6">
+          {/* ── Right: Order summary ── */}
+          <div className="pay-summary">
             <motion.div
+              className="pay-summary-card"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
-              className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl sticky top-12 border border-slate-800"
+              transition={{ duration: 0.5, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
             >
-              <h3 className="text-xl font-black mb-10 tracking-tight uppercase">Chi tiết đơn hàng</h3>
-              
-              <div className="bg-white/5 rounded-[2rem] p-8 mb-10 border border-white/10 backdrop-blur-md">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">Gói đã chọn</span>
-                  {selectedPlan?.badge && (
-                    <span className="text-[10px] font-bold bg-[#2563EB] px-3 py-1 rounded-full uppercase tracking-widest">
-                      {selectedPlan.badge}
-                    </span>
-                  )}
-                </div>
-                <div className="text-3xl font-black mb-2 tracking-tight">{selectedPlan?.name || 'Gói Dịch Vụ'}</div>
-                <div className="text-white/40 text-sm font-bold uppercase tracking-wider">Thanh toán theo {selectedPlan?.duration || 'tháng'}</div>
+              <p className="pay-summary-title">Chi tiết đơn hàng</p>
+
+              <div className="pay-plan-box">
+                <p className="pay-plan-label">Gói đã chọn</p>
+                {selectedPlan?.badge && <span className="pay-plan-badge">{selectedPlan.badge}</span>}
+                <p className="pay-plan-name">{selectedPlan?.name || 'Gói Dịch Vụ'}</p>
+                <p className="pay-plan-duration">Thanh toán theo {selectedPlan?.duration || 'tháng'}</p>
               </div>
 
-              <div className="space-y-5 mb-10">
-                <div className="flex justify-between text-sm font-bold">
-                  <span className="opacity-40 uppercase tracking-widest">Tạm tính</span>
-                  <span className="tracking-tight">₫{selectedPlan?.price || '0'}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                <div className="pay-line">
+                  <span className="pay-line-label">Tạm tính</span>
+                  <span className="pay-line-value">₫{selectedPlan?.price || '0'}</span>
                 </div>
-                <div className="flex justify-between text-sm font-bold">
-                  <span className="opacity-40 uppercase tracking-widest">Thuế (0%)</span>
-                  <span className="tracking-tight">₫0</span>
+                <div className="pay-line">
+                  <span className="pay-line-label">Thuế (0%)</span>
+                  <span className="pay-line-value">₫0</span>
                 </div>
-                <div className="h-px bg-white/10 my-6"></div>
-                <div className="flex justify-between items-baseline">
-                  <span className="text-lg font-black uppercase tracking-widest">Tổng cộng</span>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm opacity-40 font-bold">₫</span>
-                    <span className="text-4xl font-black text-[#2563EB] tracking-tighter shadow-blue-500/20">{selectedPlan?.price || '0'}</span>
-                  </div>
+                <div className="pay-divider" />
+                <div className="pay-total-row">
+                  <span className="pay-total-label">Tổng cộng</span>
+                  <span className="pay-total-amount">₫{selectedPlan?.price || '0'}</span>
                 </div>
               </div>
 
-              <div className="space-y-4 pt-4">
-                <div className="flex items-start gap-4 text-xs font-bold text-white/40">
-                  <div className="w-6 h-6 bg-emerald-500/10 rounded-lg flex items-center justify-center shrink-0 text-emerald-400">
-                    <Check className="w-4 h-4" />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="pay-benefit-item">
+                  <div className="pay-benefit-icon" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
                   </div>
-                  <span>Kích hoạt ngay lập tức sau khi hoàn tất thanh toán.</span>
+                  Kích hoạt ngay lập tức sau khi hoàn tất thanh toán.
                 </div>
-                <div className="flex items-start gap-4 text-xs font-bold text-white/40">
-                  <div className="w-6 h-6 bg-[#2563EB]/10 rounded-lg flex items-center justify-center shrink-0 text-[#2563EB]">
-                    <Shield className="w-4 h-4" />
+                <div className="pay-benefit-item">
+                  <div className="pay-benefit-icon" style={{ background: 'rgba(37,99,235,0.15)' }}>
+                    <Shield className="w-3.5 h-3.5 text-indigo-400" />
                   </div>
-                  <span>Xử lý thanh toán được mã hóa SSL 256-bit an toàn.</span>
+                  Xử lý thanh toán được mã hóa SSL 256-bit an toàn.
                 </div>
               </div>
 
               {paymentData && (
-                <div className="mt-12 pt-10 border-t border-white/5">
-                  <button 
-                    onClick={() => {
-                      setStatus('cancel');
-                      setPaymentData(null);
-                    }}
-                    className="w-full bg-white/5 text-white/60 py-5 rounded-[1.5rem] font-black hover:bg-red-500/10 hover:text-red-500 border border-white/5 transition-all flex items-center justify-center gap-3 group"
+                <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                  <button
+                    onClick={() => { setStatus('cancel'); setPaymentData(null); }}
+                    className="pay-cancel-btn"
                   >
                     Hủy giao dịch
-                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                    <X className="w-4 h-4" style={{ transition: 'transform 200ms ease' }} />
                   </button>
                 </div>
               )}
@@ -368,66 +814,63 @@ const PaymentPage = () => {
           </div>
         </div>
 
-        {/* Status Notification Modal */}
-        <AnimatePresence>
-          {status && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md"
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0, y: 30 }}
-                animate={{ scale: 1, opacity: 1, y: 0 }}
-                exit={{ scale: 0.9, opacity: 0, y: 30 }}
-                className="bg-white rounded-[3.5rem] p-12 max-w-md w-full shadow-2xl text-center space-y-8 border border-slate-100"
-              >
-                <div className={`w-24 h-24 mx-auto rounded-[2rem] flex items-center justify-center shadow-inner ${
-                  status === 'success' ? 'bg-emerald-50 text-emerald-500 border-2 border-emerald-100' : 
-                  status === 'cancel' ? 'bg-amber-50 text-amber-500 border-2 border-amber-100' : 
-                  'bg-red-50 text-red-500 border-2 border-red-100'
-                }`}>
-                  {status === 'success' ? <Check className="w-12 h-12" /> : 
-                   status === 'cancel' ? <AlertCircle className="w-12 h-12" /> : <X className="w-12 h-12" />}
-                </div>
-
-                <div className="space-y-3">
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">
-                    {status === 'success' ? 'Thanh toán Thành công!' : 
-                     status === 'cancel' ? 'Đã hủy Giao dịch' : 'Lỗi Thanh toán'}
-                  </h3>
-                  <p className="text-slate-500 font-medium px-4">
-                    {status === 'success' ? 'Đăng ký của bạn đã được kích hoạt. Đang chuyển hướng về trang chủ...' : 
-                     status === 'cancel' ? 'Bạn đã hủy yêu cầu thanh toán. Đang quay lại trang pricing...' : 
-                     error || 'Đã có lỗi xảy ra. Đang quay lại trang pricing...'}
-                  </p>
-                </div>
-
-                <div className="pt-4">
-                  <div className="w-full bg-slate-50 h-2 rounded-full overflow-hidden shadow-inner">
-                    <motion.div 
-                      initial={{ width: "0%" }}
-                      animate={{ width: "100%" }}
-                      transition={{ duration: 4, ease: "linear" }}
-                      className={`h-full ${
-                        status === 'success' ? 'bg-emerald-500' : 
-                        status === 'cancel' ? 'bg-amber-500' : 'bg-red-500'
-                      }`}
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="mt-16 text-center">
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest opacity-60">
-            Bằng việc hoàn tất thanh toán, bạn đồng ý với <Link to="/" className="underline hover:text-[#2563EB]">Điều khoản Dịch vụ</Link> và <Link to="/" className="underline hover:text-[#2563EB]">Chính sách Bảo mật</Link> của Signify AI.
-          </p>
-        </div>
+        {/* Footer */}
+        <p className="pay-footer-note">
+          Bằng việc hoàn tất thanh toán, bạn đồng ý với{' '}
+          <Link to="/">Điều khoản Dịch vụ</Link> và{' '}
+          <Link to="/">Chính sách Bảo mật</Link> của Signify AI.
+        </p>
       </div>
+
+      {/* ── Status modal ── */}
+      <AnimatePresence>
+        {status && (
+          <motion.div className="pay-modal-overlay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <motion.div
+              className="pay-modal-card"
+              initial={{ scale: 0.88, opacity: 0, y: 30 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.88, opacity: 0, y: 30 }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className={`pay-modal-icon ${
+                status === 'success' ? 'bg-emerald-50 border-2 border-emerald-100' :
+                status === 'cancel' ? 'bg-amber-50 border-2 border-amber-100' :
+                'bg-red-50 border-2 border-red-100'
+              }`}>
+                {status === 'success'
+                  ? <Check className="w-11 h-11 text-emerald-500" />
+                  : status === 'cancel'
+                  ? <AlertCircle className="w-11 h-11 text-amber-500" />
+                  : <X className="w-11 h-11 text-red-500" />
+                }
+              </div>
+
+              <p className="pay-modal-title">
+                {status === 'success' ? 'Thanh toán Thành công!' :
+                 status === 'cancel' ? 'Đã hủy Giao dịch' : 'Lỗi Thanh toán'}
+              </p>
+              <p className="pay-modal-desc">
+                {status === 'success' ? 'Đăng ký của bạn đã được kích hoạt. Đang chuyển hướng về trang chủ...' :
+                 status === 'cancel' ? 'Bạn đã hủy yêu cầu thanh toán. Đang quay lại trang gói dịch vụ...' :
+                 error || 'Đã có lỗi xảy ra. Đang quay lại trang gói dịch vụ...'}
+              </p>
+
+              <div className="pay-progress-bar">
+                <motion.div
+                  className={`pay-progress-fill ${
+                    status === 'success' ? 'bg-emerald-500' :
+                    status === 'cancel' ? 'bg-amber-500' : 'bg-red-500'
+                  }`}
+                  initial={{ width: '0%' }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 4, ease: 'linear' }}
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -56,17 +56,18 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isCollapsed, setIsCollapsed
 
         <div className={`p-6 flex items-center ${isCollapsed ? 'justify-center' : 'justify-start'} mb-4 h-24`}>
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 bg-[#2563EB] rounded-2xl flex-shrink-0 flex items-center justify-center shadow-lg shadow-[#2563EB]/20">
-              <span className="text-white font-black text-xl">S</span>
-            </div>
+            <img 
+              src="/logo_removebg.png" 
+              alt="Signify Logo" 
+              className={`${isCollapsed ? 'h-10 w-10' : 'h-12'} object-contain flex-shrink-0`}
+            />
             {!isCollapsed && (
               <motion.div 
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 className="overflow-hidden"
               >
-                <h1 className="text-xl font-black text-slate-900 tracking-tighter uppercase italic leading-none truncate">SIGNIFY</h1>
-                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1 truncate">Admin Panel</p>
+                <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1 truncate bg-slate-50 px-2 py-1 rounded-md border border-slate-100">Admin Panel</p>
               </motion.div>
             )}
           </div>

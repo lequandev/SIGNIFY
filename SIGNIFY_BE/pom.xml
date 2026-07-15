@@ -28,7 +28,7 @@
     </scm>
     <properties>
         <java.version>21</java.version>
-        <projectlombok-lombok.version>1.18.34</projectlombok-lombok.version>
+        <projectlombok-lombok.version>1.18.38</projectlombok-lombok.version>
         <org.mapstruct.version>1.6.3</org.mapstruct.version>
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <maven-compile-plugin.version>3.13.0</maven-compile-plugin.version>

@@ -1,0 +1,75 @@
+[
+  {
+    "start": 0.0,
+    "end": 2.2,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau1_Gen_Xem_lai.mp4"
+    ]
+  },
+  {
+    "start": 2.2,
+    "end": 4.2,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau2_Gen.mp4"
+    ]
+  },
+  {
+    "start": 4.2,
+    "end": 7.2,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau3_Gen.mp4"
+    ]
+  },
+  {
+    "start": 7.2,
+    "end": 9.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau4_Gen.mp4"
+    ]
+  },
+  {
+    "start": 9.0,
+    "end": 11.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau5_Gen.mp4"
+    ]
+  },
+  {
+    "start": 11.0,
+    "end": 13.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau6_Gen.mp4"
+    ]
+  },
+  {
+    "start": 13.0,
+    "end": 16.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau7_Gen.mp4",
+      "signs/Cau8_Gen.mp4"
+    ]
+  },
+  {
+    "start": 16.0,
+    "end": 18.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau9_Gen.mp4"
+    ]
+  },
+  {
+    "start": 18.0,
+    "end": 22.0,
+    "lead": 0.2,
+    "clips": [
+      "signs/Cau10_Gen.mp4"
+    ]
+  }
+]
