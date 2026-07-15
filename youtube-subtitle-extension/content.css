@@ -138,3 +138,17 @@
     text-shadow: 0 0 20px rgba(167, 139, 250, 0.8);
   }
 }
+
+/*
+ * Ẩn phụ đề gốc của YouTube khỏi mắt người dùng NHƯNG vẫn giữ chữ trong DOM
+ * để Signify đọc và dịch. Dùng opacity/pointer-events thay vì display:none để
+ * YouTube vẫn render text node bình thường.
+ * Class này được thêm/xoá trên <html> bởi content.js.
+ */
+html.signify-hide-native-cc .ytp-caption-window-container,
+html.signify-hide-native-cc .caption-window,
+html.signify-hide-native-cc .ytp-caption-window-bottom,
+html.signify-hide-native-cc .ytp-caption-window-top {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

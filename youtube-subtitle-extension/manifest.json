@@ -14,7 +14,10 @@
     "http://127.0.0.1:8080/*",
     "http://localhost:8081/*",
     "http://127.0.0.1:8081/*",
-    "*://*.youtube.com/*"
+    "*://*.youtube.com/*",
+    "*://*.googlevideo.com/*",
+    "*://*.googleapis.com/*",
+    "https://www.googleapis.com/*"
   ],
   "action": {
     "default_popup": "popup.html"
