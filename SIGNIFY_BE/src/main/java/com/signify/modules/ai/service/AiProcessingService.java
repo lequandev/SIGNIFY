@@ -65,6 +65,8 @@ public class AiProcessingService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     @jakarta.annotation.PostConstruct
     public void init() {
         try {
@@ -301,7 +303,9 @@ public class AiProcessingService {
 
     // Dictionary lookup with AI processing fallback
     public List<SignData> dictionaryLookup(List<String> words, String text) {
-        return mapKeywordsToSignData(segmentText(words, text));
+        // Dịch text sang tiếng Việt nếu cần
+        String vietnameseText = translateToVietnamese(text);
+        return mapKeywordsToSignData(segmentText(words, vietnameseText));
     }
 
     /**
@@ -393,6 +397,63 @@ public class AiProcessingService {
     public void clearMongoCache() {
         glossCacheRepository.deleteAll();
         log.info("MongoDB segmentation cache cleared.");
+    }
+
+    /** Dịch text từ bất kỳ ngôn ngữ nào sang tiếng Việt bằng Grok AI */
+    public String translateToVietnamese(String text) {
+        if (!grokConfigured()) {
+            log.warn("Grok API key chưa được cấu hình. Không thể dịch sang tiếng Việt.");
+            return text;
+        }
+
+        try {
+            log.info("Translating text to Vietnamese using Grok (xAI): '{}'", text);
+
+            String systemPrompt = "Bạn là dịch giả chuyên nghiệp. Nhiệm vụ: dịch đoạn văn bản từ bất kỳ ngôn ngữ nào sang tiếng Việt tự nhiên, chính xác. " +
+                    "QUY TẮC:\n" +
+                    "1. Giữ nguyên ý nghĩa và ngữ cảnh của văn bản gốc.\n" +
+                    "2. Dùng từ ngữ phù hợp với văn phong giao tiếp thông thường.\n" +
+                    "3. Nếu văn bản gốc đã là tiếng Việt, trả về nguyên văn.\n" +
+                    "4. CHỈ trả về đoạn văn bản đã dịch, KHÔNG kèm giải thích, KHÔNG markdown.";
+
+            Map<String, Object> userMsg = Map.of("role", "user", "content", text);
+
+            String requestBody = objectMapper.writeValueAsString(Map.of(
+                    "model", grokModel,
+                    "messages", List.of(
+                            Map.of("role", "system", "content", systemPrompt),
+                            userMsg
+                    ),
+                    "temperature", 0.3,
+                    "max_tokens", 500
+            ));
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
+                    .header("Authorization", "Bearer " + grokApiKey)
+                    .header("Content-Type", "application/json; charset=UTF-8")
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, java.nio.charset.StandardCharsets.UTF_8))
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
+
+            if (response.statusCode() != 200) {
+                log.error("Grok API error: {}", response.body());
+                return text;
+            }
+
+            JsonNode root = objectMapper.readTree(response.body());
+            log.info("Grok translation raw response: {}", response.body());
+            String translatedText = root.path("choices").get(0).path("message").path("content").asText();
+
+            log.info("Translated to Vietnamese: '{}' -> '{}'", text, translatedText);
+            return translatedText;
+
+        } catch (Exception e) {
+            log.error("Failed to translate to Vietnamese using Grok (xAI)", e);
+            return text;
+        }
     }
 
     /** Lưu (hoặc cập nhật) cache bền. */
