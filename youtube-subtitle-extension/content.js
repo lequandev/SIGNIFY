@@ -201,6 +201,9 @@
     return signDataList;
   }
 
+  // Video "đứng yên" phát khi rảnh hoặc khi một từ không có clip riêng.
+  const IDLE_VIDEO_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload/dung-im.mp4";
+
   let overlayContainer = null;
   let overlayVisible = true;
   let animationQueue = [];
@@ -244,7 +247,7 @@
       </div>
       <div class="signify-video-container">
         <!-- High performance video player for local/cloud sign language mp4 clips -->
-        <video id="signify-video-player" class="signify-video" style="display:none;" muted autoplay></video>
+        <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
 
         <!-- Premium glassmorphic text-card fallback when no mp4 is found -->
         <div id="signify-fallback-card" class="signify-fallback-card">
@@ -275,21 +278,34 @@
     const videoPlayer = document.getElementById('signify-video-player');
     videoPlayer.addEventListener('ended', playNextAnimation);
     videoPlayer.addEventListener('error', (e) => {
-      console.warn("Video failed to play, defaulting to text card fallback:", e);
+      console.warn("Video lỗi, bỏ qua sang clip kế tiếp:", e);
       handlePlaybackError();
     });
+
+    // Ngay khi tạo overlay: phát video đứng yên làm trạng thái chờ.
+    playIdleVideo();
   }
 
-  // Handle playback failures smoothly without freezing the animation queue
-  function handlePlaybackError() {
+  // Phát video "đứng yên" lặp lại (trạng thái chờ). KHÔNG hiện chữ.
+  function playIdleVideo() {
     const videoPlayer = document.getElementById('signify-video-player');
-    const fallbackCard = document.getElementById('signify-fallback-card');
+    if (!videoPlayer) return;
+    isPlaying = false;
+    videoPlayer.style.display = 'block';
+    videoPlayer.loop = true;
+    // Chỉ nạp lại nếu chưa phải clip đứng yên (tránh giật khi gọi liên tục).
+    if (videoPlayer.getAttribute('data-idle') !== '1') {
+      videoPlayer.src = IDLE_VIDEO_URL;
+      videoPlayer.setAttribute('data-idle', '1');
+      videoPlayer.load();
+    }
+    videoPlayer.play().catch(() => {});
+  }
 
-    if (videoPlayer) videoPlayer.style.display = 'none';
-    if (fallbackCard) fallbackCard.style.display = 'flex';
-
+  // Khi clip lỗi: bỏ qua, sang clip kế tiếp (không hiện thẻ chữ).
+  function handlePlaybackError() {
     clearTimeout(animationTimeout);
-    animationTimeout = setTimeout(playNextAnimation, 600);
+    animationTimeout = setTimeout(playNextAnimation, 300);
   }
 
   // 2. Queue Manager to Play Animations Sequentially
@@ -297,48 +313,34 @@
     clearTimeout(animationTimeout);
 
     const videoPlayer = document.getElementById('signify-video-player');
-    const fallbackCard = document.getElementById('signify-fallback-card');
-    const fallbackWord = document.getElementById('signify-fallback-word');
 
     if (animationQueue.length === 0) {
-      isPlaying = false;
-      // Revert to wait state when done
-      if (videoPlayer) videoPlayer.style.display = 'none';
-      if (fallbackCard) fallbackCard.style.display = 'flex';
+      // Hết hàng đợi -> quay về video đứng yên (không hiện chữ).
+      playIdleVideo();
       return;
     }
 
     isPlaying = true;
     const currentSign = animationQueue.shift();
 
-    if (fallbackWord) fallbackWord.textContent = currentSign.word;
-
-    // UPGRADED CHECK: Support both Base64 Data URL and HTTP MP4 videos safely!
+    // Từ nào không có clip riêng -> dùng luôn video đứng yên.
     const hasVideo = currentSign.animation && (
       currentSign.animation.startsWith('data:') ||
       currentSign.animation.includes('.mp4')
     );
+    const srcUrl = hasVideo ? currentSign.animation : IDLE_VIDEO_URL;
 
-    if (hasVideo) {
-      if (fallbackCard) fallbackCard.style.display = 'none';
-      if (videoPlayer) {
-        videoPlayer.style.display = 'block';
-        videoPlayer.src = currentSign.animation;
-        videoPlayer.load();
+    if (videoPlayer) {
+      videoPlayer.style.display = 'block';
+      videoPlayer.loop = false;
+      videoPlayer.removeAttribute('data-idle'); // đây là clip nội dung, không phải idle
+      videoPlayer.src = srcUrl;
+      videoPlayer.load();
 
-        // Autoplay policy check
-        videoPlayer.play().catch(err => {
-          console.warn("Autoplay was blocked or interrupted. Using card fallback:", err);
-          if (videoPlayer) videoPlayer.style.display = 'none';
-          if (fallbackCard) fallbackCard.style.display = 'flex';
-          animationTimeout = setTimeout(playNextAnimation, 600);
-        });
-      }
-    } else {
-      // Standard text-card display fallback
-      if (videoPlayer) videoPlayer.style.display = 'none';
-      if (fallbackCard) fallbackCard.style.display = 'flex';
-      animationTimeout = setTimeout(playNextAnimation, 600);
+      videoPlayer.play().catch(err => {
+        console.warn("Autoplay bị chặn/gián đoạn, bỏ qua clip:", err);
+        animationTimeout = setTimeout(playNextAnimation, 300);
+      });
     }
   }
 

@@ -51,14 +51,18 @@ public class AiProcessingService {
     @org.springframework.beans.factory.annotation.Value("${anthropic.model:claude-3-5-haiku-20241022}")
     private String anthropicModel;
 
-    @org.springframework.beans.factory.annotation.Value("${grok.api-key:}")
-    private String grokApiKey;
+    @org.springframework.beans.factory.annotation.Value("${groq.api-key:}")
+    private String groqApiKey;
 
-    @org.springframework.beans.factory.annotation.Value("${grok.model:grok-3-mini}")
-    private String grokModel;
+    @org.springframework.beans.factory.annotation.Value("${groq.model:llama-3.3-70b-versatile}")
+    private String groqModel;
 
     @org.springframework.beans.factory.annotation.Value("${server.port:8080}")
     private String serverPort;
+
+    // URL gốc video trên Cloudinary. Nếu để trống -> rơi về serve local (dev).
+    @org.springframework.beans.factory.annotation.Value("${cloudinary.video-base-url:}")
+    private String cloudinaryVideoBaseUrl;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -73,6 +77,11 @@ public class AiProcessingService {
             seedGlossaryIfEmpty();
         } catch (Exception e) {
             log.warn("Seed glossary lúc khởi động thất bại: {}", e.getMessage());
+        }
+        try {
+            loadSlugAliases();
+        } catch (Exception e) {
+            log.warn("Nạp slug alias lúc khởi động thất bại: {}", e.getMessage());
         }
     }
 
@@ -291,12 +300,14 @@ public class AiProcessingService {
 
 
     // Vietnamese Sign Language Stopwords
+    // Lưu ý: KHÔNG đưa đại từ nhân xưng (tôi, bạn, họ, nó, mình, ta, chúng ta...) vào đây
+    // vì chúng mang nghĩa và có ký hiệu riêng — loại bỏ sẽ làm mất nghĩa câu.
     private static final Set<String> VIETNAMESE_STOPWORDS = new HashSet<>(Arrays.asList(
-            "nè", "nha", "nhé", "nhỉ", "à", "ơi", "ớ", "ừ", "dạ", "vâng", "bạn", "các", "kiểu", "cơ", "đấy", "thế",
-            "này", "kia", "nọ", "nhe", "nha", "ờ", "ờm", "thì", "mà",
+            "nè", "nha", "nhé", "nhỉ", "à", "ơi", "ớ", "ừ", "dạ", "vâng", "các", "kiểu", "cơ", "đấy", "thế",
+            "này", "kia", "nọ", "nhe", "ờ", "ờm", "thì", "mà",
             "là", "còn", "và", "hoặc", "nhưng", "tuy", "tại", "do", "bởi", "đang", "đã", "vừa", "mới", "sẽ",
-            "cũng", "như", "nó", "họ", "chúng", "mình", "tôi", "tớ", "ta", "cậu", "chúng tôi", "chúng ta",
-            "này", "đó", "ấy", "rồi", "lại", "nơi", "nào", "gì", "ai", "đâu", "sao", "bao", "quá", "rất", "lắm", "hơi",
+            "cũng", "như",
+            "đó", "ấy", "rồi", "lại", "nơi", "nào", "gì", "đâu", "sao", "bao", "quá", "rất", "lắm", "hơi",
             "cực", "kỳ", "món", "để", "cho", "hơn",
             ">>", "<<", "->", "=>", "http", "https", ">", "<", "các kiểu"
     ));
@@ -362,7 +373,7 @@ public class AiProcessingService {
         // MISS hoàn toàn.
         // Nếu có LLM (Groq): gọi ĐỒNG BỘ để trả về đúng bản chất lượng cao ngay cho client
         // (Groq trả <1s nên chấp nhận chờ). Chỉ khi LLM lỗi/timeout mới rơi về rule-based.
-        if (grokConfigured()) {
+        if (groqConfigured()) {
             log.info("Segment MISS -> gọi Groq đồng bộ cho: '{}'", filteredText);
             List<String> aiGlosses = translateTextToGloss(filteredText);
             if (aiGlosses != null && !aiGlosses.isEmpty()) {
@@ -399,15 +410,20 @@ public class AiProcessingService {
         log.info("MongoDB segmentation cache cleared.");
     }
 
-    /** Dịch text từ bất kỳ ngôn ngữ nào sang tiếng Việt bằng Grok AI */
+    /** Dịch text từ bất kỳ ngôn ngữ nào sang tiếng Việt bằng Groq AI */
     public String translateToVietnamese(String text) {
-        if (!grokConfigured()) {
-            log.warn("Grok API key chưa được cấu hình. Không thể dịch sang tiếng Việt.");
+        // Nếu text đã là tiếng Việt thì khỏi gọi AI (tiết kiệm request + độ trễ).
+        if (isLikelyVietnamese(text)) {
+            log.info("Text đã là tiếng Việt, bỏ qua bước dịch: '{}'", text);
+            return text;
+        }
+        if (!groqConfigured()) {
+            log.warn("Groq API key chưa được cấu hình. Không thể dịch sang tiếng Việt.");
             return text;
         }
 
         try {
-            log.info("Translating text to Vietnamese using Grok (xAI): '{}'", text);
+            log.info("Translating text to Vietnamese using Groq: '{}'", text);
 
             String systemPrompt = "Bạn là dịch giả chuyên nghiệp. Nhiệm vụ: dịch đoạn văn bản từ bất kỳ ngôn ngữ nào sang tiếng Việt tự nhiên, chính xác. " +
                     "QUY TẮC:\n" +
@@ -419,7 +435,7 @@ public class AiProcessingService {
             Map<String, Object> userMsg = Map.of("role", "user", "content", text);
 
             String requestBody = objectMapper.writeValueAsString(Map.of(
-                    "model", grokModel,
+                    "model", groqModel,
                     "messages", List.of(
                             Map.of("role", "system", "content", systemPrompt),
                             userMsg
@@ -430,7 +446,7 @@ public class AiProcessingService {
 
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
-                    .header("Authorization", "Bearer " + grokApiKey)
+                    .header("Authorization", "Bearer " + groqApiKey)
                     .header("Content-Type", "application/json; charset=UTF-8")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody, java.nio.charset.StandardCharsets.UTF_8))
                     .timeout(Duration.ofSeconds(30))
@@ -439,19 +455,19 @@ public class AiProcessingService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
 
             if (response.statusCode() != 200) {
-                log.error("Grok API error: {}", response.body());
+                log.error("Groq API error: {}", response.body());
                 return text;
             }
 
             JsonNode root = objectMapper.readTree(response.body());
-            log.info("Grok translation raw response: {}", response.body());
+            log.info("Groq translation raw response: {}", response.body());
             String translatedText = root.path("choices").get(0).path("message").path("content").asText();
 
             log.info("Translated to Vietnamese: '{}' -> '{}'", text, translatedText);
             return translatedText;
 
         } catch (Exception e) {
-            log.error("Failed to translate to Vietnamese using Grok (xAI)", e);
+            log.error("Failed to translate to Vietnamese using Groq", e);
             return text;
         }
     }
@@ -477,7 +493,7 @@ public class AiProcessingService {
      * sẽ được trả bản Gemini tức thì.
      */
     private void triggerBackgroundGeminiUpgrade(String key, String originalText) {
-        if (!grokConfigured()) {
+        if (!groqConfigured()) {
             return; // không có key thì khỏi thử
         }
         // Lọc nội dung trong ngoặc trước khi xử lý
@@ -513,9 +529,9 @@ public class AiProcessingService {
     }
 
 
-    private boolean grokConfigured() {
-        return grokApiKey != null && !grokApiKey.isEmpty()
-                && !grokApiKey.startsWith("${") && !grokApiKey.startsWith("PASTE_");
+    private boolean groqConfigured() {
+        return groqApiKey != null && !groqApiKey.isEmpty()
+                && !groqApiKey.startsWith("${") && !groqApiKey.startsWith("PASTE_");
     }
 
     /** Loại bỏ nội dung trong ngoặc vuông, ngoặc kép, ngoặc đơn (như [âm nhạc], <<...>>, (...)) */
@@ -531,18 +547,18 @@ public class AiProcessingService {
     }
 
     public List<String> translateTextToGloss(String text) {
-        if (!grokConfigured()) {
-            log.warn("Grok API key chưa được cấu hình (đặt GROK_API_KEY trong .env). Dùng bộ tách rule-based.");
+        if (!groqConfigured()) {
+            log.warn("Groq API key chưa được cấu hình (đặt GROQ_API_KEY trong .env). Dùng bộ tách rule-based.");
             return null;
         }
 
         try {
             String filteredText = filterBracketedContent(text);
             if (filteredText == null || filteredText.trim().isEmpty()) {
-                log.warn("Text sau khi lọc bracketed content rỗng, bỏ qua gọi Grok.");
+                log.warn("Text sau khi lọc bracketed content rỗng, bỏ qua gọi Groq.");
                 return null;
             }
-            log.info("Translating text to sign language glosses using Grok (xAI): '{}'", filteredText);
+            log.info("Translating text to sign language glosses using Groq: '{}'", filteredText);
             String systemPrompt = "Bạn là chuyên gia ngôn ngữ ký hiệu Việt Nam (Vietnamese Sign Language). " +
                     "Nhiệm vụ: tách câu phụ đề tiếng Việt thành danh sách các đơn vị cử chỉ ký hiệu có nghĩa cho người câm điếc.\n\n" +
                     "QUY TẮC:\n" +
@@ -558,11 +574,11 @@ public class AiProcessingService {
                     "Output: [\"hôm nay\", \"tìm hiểu\", \"trí tuệ nhân tạo\", \"AI\", \"thay đổi\", \"cuộc sống hiện đại\"]";
 
             ObjectMapper mapper = new ObjectMapper();
-            // Grok tương thích OpenAI: messages [system, user].
+            // Groq tương thích OpenAI: messages [system, user].
             Map<String, Object> sysMsg = Map.of("role", "system", "content", systemPrompt);
             Map<String, Object> userMsg = Map.of("role", "user", "content", filteredText);
             Map<String, Object> requestBodyMap = Map.of(
-                    "model", grokModel,
+                    "model", groqModel,
                     "max_tokens", 512,
                     "temperature", 0,
                     "messages", List.of(sysMsg, userMsg)
@@ -572,7 +588,7 @@ public class AiProcessingService {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
                     .header("Content-Type", "application/json")
-                    .header("Authorization", "Bearer " + grokApiKey)
+                    .header("Authorization", "Bearer " + groqApiKey)
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
                     .timeout(Duration.ofSeconds(20))
                     .build();
@@ -587,12 +603,12 @@ public class AiProcessingService {
             JsonNode rootNode = mapper.readTree(response.body());
             JsonNode textNode = rootNode.path("choices").path(0).path("message").path("content");
             if (textNode.isMissingNode()) {
-                log.warn("Could not find generated text in Grok response. Body: {}", response.body());
+                log.warn("Could not find generated text in Groq response. Body: {}", response.body());
                 return null;
             }
 
             String aiResponseText = stripMarkdownFence(textNode.asText().trim());
-            log.info("Grok raw response: {}", aiResponseText);
+            log.info("Groq raw response: {}", aiResponseText);
 
             JsonNode jsonNode = mapper.readTree(aiResponseText);
             if (jsonNode.isArray()) {
@@ -606,7 +622,7 @@ public class AiProcessingService {
 
             return null;
         } catch (Exception e) {
-            log.error("Failed to translate text to sign language glosses using Grok (xAI)", e);
+            log.error("Failed to translate text to sign language glosses using Groq", e);
             return null;
         }
     }
@@ -618,17 +634,232 @@ public class AiProcessingService {
             if (displayWord.isEmpty()) continue;
             if (!isMeaningfulWord(displayWord)) continue;
 
-            // Tên file animation luôn không dấu, chữ thường, nối bằng '-'.
             // displayWord giữ nguyên chữ hoa (ví dụ "AI") để hiển thị.
-            String fileKey = stripVietnameseAccents(displayWord.toLowerCase()).replace(" ", "-");
-            String dynamicUrl = "http://127.0.0.1:" + serverPort + "/assets/animations/" + fileKey + ".mp4";
+            String animationUrl = resolveAnimationUrl(displayWord);
 
             signDataList.add(SignData.builder()
                     .word(displayWord)
-                    .animation(dynamicUrl)
+                    .animation(animationUrl)
                     .build());
         }
         return signDataList;
+    }
+
+    // Alias: một số gloss AI trả về không trùng tên file video. Map về slug thật trên Cloudinary.
+    // Khóa alias là slug đã chuẩn hóa (không dấu, chữ thường, nối '-'); giá trị là slug video đích.
+    // Nạp từ file CSV (video.slug-aliases-file) lúc khởi động -> thêm/sửa bằng Excel, không build lại,
+    // chỉ cần restart. Mỗi dòng = 1 video, gom mọi từ đồng nghĩa: canonical,slug,aliases (ngăn bằng '|').
+    private final Map<String, String> slugAliases = new java.util.concurrent.ConcurrentHashMap<>();
+
+    // Đường dẫn file CSV alias — MỘT file duy nhất, mặc định "slug-aliases.csv" ở thư mục chạy
+    // backend. Đổi đường dẫn qua VIDEO_SLUG_ALIASES_FILE trong .env nếu để chỗ khác.
+    @org.springframework.beans.factory.annotation.Value("${video.slug-aliases-file:slug-aliases.csv}")
+    private String slugAliasesFile;
+
+    // Slug video mặc định khi không tìm được video phù hợp (đứng im).
+    private static final String FALLBACK_SLUG = "dung-im";
+
+    /**
+     * Nạp alias từ file CSV. Định dạng mỗi dòng: canonical,slug,aliases
+     * - canonical: tên hiển thị (chỉ để người đọc, không dùng để so khớp).
+     * - slug: PUBLIC ID THẬT trên Cloudinary, giữ NGUYÊN VĂN (ví dụ "nha_oktegb", có hậu tố).
+     *         KHÔNG chuẩn hóa cột này vì Cloudinary tự thêm hậu tố ngẫu nhiên (_oktegb...).
+     * - aliases: các từ đồng nghĩa, ngăn nhau bằng '|' hoặc ',' (ví dụ "siêng|siêng năng|cần cù").
+     * Alias VÀ canonical được chuẩn hóa qua toSlug() làm KHÓA, map về public id (giá trị) đích.
+     * Đọc một file CSV duy nhất cạnh backend; tự bỏ BOM nếu Excel chèn.
+     */
+    public void loadSlugAliases() {
+        slugAliases.clear();
+        List<String> lines = readAliasCsvLines();
+        if (lines == null || lines.isEmpty()) {
+            log.info("Không đọc được file alias '{}' — chạy không alias.", slugAliasesFile);
+            return;
+        }
+
+        int rows = 0;
+        boolean headerSkipped = false;
+        for (String raw : lines) {
+            // Bỏ BOM (﻿) mà Excel "CSV UTF-8" chèn ở đầu file, tránh dính vào ô đầu tiên.
+            String line = raw.replace("﻿", "").trim();
+            if (line.isEmpty() || line.startsWith("#")) continue;
+
+            List<String> cols = parseCsvLine(line);
+            if (!headerSkipped && !cols.isEmpty()
+                    && cols.get(0).toLowerCase().startsWith("canonical")) {
+                headerSkipped = true;
+                continue;
+            }
+            if (cols.size() < 2) {
+                log.warn("Bỏ qua dòng alias sai định dạng: '{}'", raw);
+                continue;
+            }
+
+            // Cột 1 = public id thật, GIỮ NGUYÊN (chỉ trim), không chạy toSlug.
+            String targetId = cols.get(1).trim();
+            if (targetId.isEmpty()) {
+                log.warn("Bỏ qua dòng alias thiếu slug đích: '{}'", raw);
+                continue;
+            }
+
+            // canonical (cột 0) cũng được map về id đích để bắt trọn.
+            addAlias(cols.get(0), targetId);
+            // aliases (cột 2) ngăn bằng '|' hoặc ','.
+            if (cols.size() >= 3) {
+                for (String alias : cols.get(2).split("[|,]")) {
+                    addAlias(alias, targetId);
+                }
+            }
+            rows++;
+        }
+        log.info("Đã nạp {} video ({} alias) từ '{}'.", rows, slugAliases.size(), slugAliasesFile);
+    }
+
+    /** Chuẩn hóa 'from' làm khóa rồi map về targetId (public id thật). Bỏ qua nếu khóa rỗng. */
+    private void addAlias(String from, String targetId) {
+        String key = toSlug(from);
+        if (key.isEmpty()) return;
+        slugAliases.put(key, targetId);
+    }
+
+    /**
+     * Parse một dòng CSV thành các cột, tôn trọng dấu ngoặc kép quanh ô chứa dấu phẩy.
+     * Ví dụ: con mèo,con-meo_xtj4wo,"con mèo, mèo" -> 3 cột đúng.
+     */
+    private List<String> parseCsvLine(String line) {
+        List<String> cols = new ArrayList<>();
+        StringBuilder cur = new StringBuilder();
+        boolean inQuotes = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '"') {
+                inQuotes = !inQuotes;
+            } else if (c == ',' && !inQuotes) {
+                cols.add(cur.toString());
+                cur.setLength(0);
+            } else {
+                cur.append(c);
+            }
+        }
+        cols.add(cur.toString());
+        return cols;
+    }
+
+    /** Đọc các dòng file CSV alias (một file duy nhất cạnh backend). UTF-8. */
+    private List<String> readAliasCsvLines() {
+        try {
+            java.nio.file.Path path = java.nio.file.Paths.get(slugAliasesFile);
+            if (java.nio.file.Files.exists(path)) {
+                return java.nio.file.Files.readAllLines(path, java.nio.charset.StandardCharsets.UTF_8);
+            }
+            log.warn("Không tìm thấy file alias '{}' (đường dẫn tuyệt đối: {}).",
+                    slugAliasesFile, path.toAbsolutePath());
+        } catch (Exception e) {
+            log.warn("Lỗi đọc file alias '{}': {}", slugAliasesFile, e.getMessage());
+        }
+        return null;
+    }
+
+    // Cache kết quả kiểm tra tồn tại video trên Cloudinary (slug -> có/không) để tránh HEAD lặp.
+    private final java.util.Map<String, Boolean> videoExistsCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Chuẩn hóa một từ/cụm thành slug tên file: viết thường, bỏ dấu tiếng Việt,
+     * khoảng trắng -> '-', loại ký tự lạ, gộp '-' thừa, cắt '-' ở đầu/cuối.
+     * Ví dụ: "Cố gắng" -> "co-gang", "Cảm ơn" -> "cam-on".
+     */
+    private String toSlug(String input) {
+        if (input == null) return "";
+        String noAccent = stripVietnameseAccents(input).toLowerCase();
+        return noAccent
+                .replaceAll("[^a-z0-9\\s-]", " ") // bỏ ký tự không phải chữ/số
+                .trim()
+                .replaceAll("[\\s-]+", "-")       // khoảng trắng/gạch -> một '-'
+                .replaceAll("^-+|-+$", "");        // cắt '-' thừa đầu/cuối
+    }
+
+    /**
+     * Xác định URL video cho một từ:
+     * 1) slug chuẩn hóa (ví dụ "con mèo" -> "con-meo") — nếu có video trên Cloudinary thì dùng.
+     * 2) nếu không, tra alias trong CSV (từ đồng nghĩa -> public id) — nếu có video thì dùng.
+     * 3) nếu vẫn không có, trả video mặc định "dung-im".
+     * Không tự ghép URL cho slug không tồn tại (tránh link 404).
+     */
+    private String resolveAnimationUrl(String displayWord) {
+        String slug = toSlug(displayWord);
+
+        // Ứng viên theo thứ tự ưu tiên: slug gốc, rồi alias (nếu khác).
+        List<String> candidates = new ArrayList<>();
+        if (!slug.isEmpty()) candidates.add(slug);
+        String alias = slugAliases.get(slug);
+        if (alias != null && !alias.equals(slug)) candidates.add(alias);
+
+        for (String candidate : candidates) {
+            if (videoExists(candidate)) {
+                return buildVideoUrl(candidate);
+            }
+        }
+
+        // Không có video khớp -> dùng video đứng im mặc định.
+        log.info("Không có video cho '{}' (slug='{}') -> fallback '{}'", displayWord, slug, FALLBACK_SLUG);
+        return buildVideoUrl(FALLBACK_SLUG);
+    }
+
+    /** Ghép URL đầy đủ tới video: <base>/<slug>.mp4. Nếu chưa cấu hình Cloudinary thì serve local (dev). */
+    private String buildVideoUrl(String slug) {
+        if (cloudinaryConfigured()) {
+            String base = cloudinaryVideoBaseUrl.replaceAll("/+$", ""); // bỏ '/' cuối nếu có
+            return base + "/" + slug + ".mp4";
+        }
+        // Fallback dev: serve từ local static như trước.
+        return "http://127.0.0.1:" + serverPort + "/assets/animations/" + slug + ".mp4";
+    }
+
+    private boolean cloudinaryConfigured() {
+        return cloudinaryVideoBaseUrl != null
+                && !cloudinaryVideoBaseUrl.isBlank()
+                && !cloudinaryVideoBaseUrl.startsWith("${");
+    }
+
+    /**
+     * Kiểm tra video của slug có tồn tại trên Cloudinary hay không (HEAD request, có cache).
+     * Fallback slug ("dung-im") luôn coi là tồn tại để đảm bảo luôn có video trả về.
+     * Khi chưa cấu hình Cloudinary (dev): không thể kiểm tra từ xa nên coi như tồn tại.
+     */
+    private boolean videoExists(String slug) {
+        if (slug == null || slug.isEmpty()) return false;
+        if (FALLBACK_SLUG.equals(slug)) return true;
+        if (!cloudinaryConfigured()) return true; // dev: bỏ qua kiểm tra từ xa
+
+        Boolean cached = videoExistsCache.get(slug);
+        if (cached != null) return cached;
+
+        boolean exists = false;
+        try {
+            HttpRequest headReq = HttpRequest.newBuilder()
+                    .uri(URI.create(buildVideoUrl(slug)))
+                    .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                    .timeout(Duration.ofSeconds(5))
+                    .build();
+            HttpResponse<Void> resp = httpClient.send(headReq, HttpResponse.BodyHandlers.discarding());
+            exists = resp.statusCode() >= 200 && resp.statusCode() < 300;
+        } catch (Exception e) {
+            log.warn("Kiểm tra video '{}' thất bại, coi như không tồn tại: {}", slug, e.getMessage());
+            exists = false;
+        }
+        videoExistsCache.put(slug, exists);
+        return exists;
+    }
+
+    /**
+     * Phát hiện text đã là tiếng Việt (có dấu tiếng Việt) để bỏ qua bước dịch AI.
+     * Dựa vào sự xuất hiện của ký tự có dấu đặc trưng tiếng Việt.
+     */
+    private boolean isLikelyVietnamese(String text) {
+        if (text == null || text.isBlank()) return true; // rỗng thì khỏi dịch
+        return text.chars().anyMatch(c ->
+                "àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ"
+                        .indexOf(Character.toLowerCase(c)) >= 0);
     }
 
     // ===== Quản lý glossary thủ công (nguồn chính xác do người duyệt) =====

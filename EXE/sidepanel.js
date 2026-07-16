@@ -46,180 +46,18 @@ const premiumMessage = document.getElementById("premiumMessage");
 const wordChipsContainer = document.getElementById("wordChipsContainer");
 
 // ===================================================
-// 🧠 ENGINE TÁCH TỪ CHO NGÔN NGỮ NGƯỜI ĐIẾC (v2)
+// 🧠 TÁCH TỪ — Backend AI là nguồn chính.
+// Local chỉ còn một splitter tối giản làm fallback khi backend lỗi.
+// (Bộ từ điển stopword/compound cũ đã bỏ vì backend đảm nhận việc tách từ.)
 // ===================================================
 
-const VIETNAMESE_STOPWORDS = new Set([
-  // Hư từ / liên từ / giới từ
-  "là", "và", "hoặc", "nhưng", "tuy", "tuy nhiên", "thế nhưng",
-  "tại", "do", "bởi", "vì", "để", "cho", "của", "với", "về",
-  "trong", "ngoài", "trên", "dưới", "sau", "trước", "giữa", "bên",
-  "từ", "đến", "tới", "qua", "về", "theo",
-  // Trợ từ / tiểu từ
-  "thì", "mà", "là", "đó", "này", "kia", "nọ", "ấy",
-  "nè", "nha", "nhé", "nhỉ", "thôi", "vậy", "vậy thôi",
-  "à", "ơi", "ớ", "ừ", "ừm", "ờm", "dạ", "vâng", "ạ",
-  // Đại từ
-  "tôi", "mình", "ta", "tớ", "cậu", "bạn", "nó", "họ", "chúng",
-  "anh", "chị", "em", "ông", "bà", "cô", "chú",
-  // Phó từ chỉ mức độ
-  "rất", "quá", "lắm", "hơi", "cực", "kỳ", "siêu", "khá",
-  // Thì / thể động từ
-  "đã", "đang", "sẽ", "vừa", "mới", "đang", "cũng",
-  // Khác
-  "như", "còn", "lại", "nơi", "nào", "gì", "ai", "đâu",
-  "sao", "bao", "các", "kiểu", "cơ", "đấy", "thế", "rồi", "hơn"
-]);
-
-// Từ điển từ ghép – sắp xếp từ DÀI đến NGẮN để scan greedy đúng
-// (3-4 từ trước, rồi 2 từ)
-const COMPOUND_WORDS = [
-  // 4 từ
-  "trí tuệ nhân tạo", "học máy học sâu",
-  "cơm chiên hải sản", "canh chua cá lóc",
-  "thịt kho tàu hột vịt",
-
-  // 3 từ
-  "hướng dẫn cách làm", "hướng dẫn nấu ăn",
-  "cách làm tại nhà", "tại nhà đơn giản",
-  "ngon và dễ", "dễ làm tại nhà",
-  "không có gì", "không biết gì",
-  "như thế nào", "bao nhiêu tiền",
-  "cảm ơn các bạn", "xin chào mọi người",
-  "chào mừng các bạn", "hôm nay mình",
-  "ngày hôm nay", "ngày hôm qua",
-
-  // 2 từ – ẩm thực / nấu ăn
-  "cơm chiên", "hải sản", "cơm trắng",
-  "canh chua", "nước mắm", "rau sống",
-  "thịt bò", "thịt gà", "thịt heo", "thịt lợn",
-  "cá hồi", "cá thu", "cá ngừ", "cá lóc",
-  "tôm tươi", "mực tươi", "cua biển",
-  "rau muống", "rau cải", "giá đỗ",
-  "bột mì", "dầu ăn", "bơ sữa",
-  "hành tây", "hành lá", "tỏi băm", "ớt tươi",
-  "xì dầu", "nước tương", "dấm gạo",
-  "bánh mì", "phở bò", "bún bò", "hủ tiếu",
-  "chả giò", "nem cuốn", "bánh xèo",
-  "nước dừa", "nước lọc", "trà sữa",
-  "kem tươi", "bánh ngọt", "trái cây",
-  "dễ làm", "ngon lành", "thơm ngon", "đơn giản",
-  "nấu chín", "chiên vàng", "hấp chín", "nướng thơm",
-  "ướp thịt", "xào đều", "khuấy đều",
-
-  // 2 từ – chào hỏi / giao tiếp
-  "xin chào", "mọi người", "chào mừng",
-  "xin lỗi", "cảm ơn", "tạm biệt", "làm ơn",
-  "không sao", "được không", "có không",
-  "thế nào", "bao nhiêu", "bao lâu", "bao xa",
-  "đúng rồi", "đúng vậy", "được rồi",
-  "tốt lắm", "hay lắm", "đẹp lắm",
-  "một chút", "một lúc",
-
-  // 2 từ – động từ ghép
-  "hướng dẫn", "chia sẻ", "giới thiệu", "nói chuyện",
-  "tham khảo", "thử nghiệm", "kiểm tra", "đánh giá",
-  "mua sắm", "tiết kiệm", "đầu tư", "kinh doanh",
-  "học tập", "nghiên cứu", "phát triển", "sáng tạo",
-  "chuẩn bị", "bắt đầu", "tiếp tục", "hoàn thành",
-  "thực hiện", "sử dụng", "áp dụng", "thay đổi",
-  "mở rộng", "thu hẹp", "tăng cường", "giảm bớt",
-  "đi làm", "đi học", "đi chợ", "đi chơi",
-  "về nhà", "ra ngoài", "vào trong", "lên trên", "xuống dưới",
-  "nghe nói", "nghe thấy", "nói rằng", "nói với",
-  "đứng lên", "ngồi xuống", "mở ra", "đóng lại",
-
-  // 2 từ – cảm xúc / tính từ
-  "vui vẻ", "hạnh phúc", "buồn bã", "lo lắng",
-  "hồi hộp", "ngạc nhiên", "thích thú", "hài lòng",
-  "khó khăn", "đơn giản", "phức tạp", "thú vị",
-  "quan trọng", "cần thiết", "đặc biệt", "tuyệt vời",
-  "đẹp lắm", "ngon lắm",
-
-  // 2 từ – thời gian / địa điểm
-  "hôm nay", "ngày mai", "hôm qua", "tuần sau",
-  "buổi sáng", "buổi trưa", "buổi tối", "ban đêm",
-  "tại nhà", "ở nhà", "ngoài đường", "trong bếp",
-  "siêu thị", "chợ trời", "nhà hàng", "quán ăn",
-  "thành phố", "nông thôn", "miền nam", "miền bắc",
-
-  // 2 từ – công nghệ / mạng xã hội
-  "mạng xã hội", "điện thoại", "máy tính", "phần mềm",
-  "ứng dụng", "nội dung", "video clip", "kênh youtube",
-  "subscribe kênh", "like share", "bình luận",
-  "trực tuyến", "ngoại tuyến", "kết nối", "internet",
-  "trí tuệ", "nhân tạo", "học máy", "dữ liệu",
-
-  // 2 từ – gia đình / quan hệ
-  "gia đình", "bạn bè", "người thân",
-  "anh ấy", "chị ấy", "em ấy", "bạn ấy",
-  "của tôi", "của bạn", "của anh", "của chị", "của em",
-
-  // 2 từ – số lượng / mức độ
-  "tất cả", "hầu hết", "một số", "nhiều lắm",
-  "ít thôi", "vừa đủ", "quá nhiều", "không đủ",
-  "có thể", "có lẽ", "chắc chắn", "thực sự",
-  "không được", "không thể", "không có", "không biết",
-  "rất tốt", "rất đẹp", "rất hay", "rất vui", "rất buồn",
-];
-
-/**
- * Tách văn bản thành danh sách token có nghĩa.
- * Thuật toán: greedy scan từ trái sang phải,
- * ưu tiên khớp từ ghép dài nhất tại mỗi vị trí.
- */
+/** Splitter tối giản: tách theo khoảng trắng, bỏ dấu câu bao quanh và token quá ngắn. */
 function splitTextIntoWords(text) {
   if (!text) return [];
-
-  // Chuẩn hóa: chữ thường, bỏ dấu câu ở đầu/cuối mỗi token
-  const normalized = text.toLowerCase().trim();
-  const tokenArr = normalized.split(/\s+/); // tách thành mảng từ đơn
-
-  const result = [];
-  let i = 0;
-
-  while (i < tokenArr.length) {
-    let matched = false;
-
-    // Thử khớp từ ghép dài nhất từ vị trí i
-    // COMPOUND_WORDS đã sắp xếp dài → ngắn
-    for (const compound of COMPOUND_WORDS) {
-      const compTokens = compound.split(/\s+/);
-      const len = compTokens.length;
-
-      if (i + len > tokenArr.length) continue;
-
-      // So sánh từng token (sau khi strip dấu câu)
-      const slice = tokenArr.slice(i, i + len)
-        .map(w => w.replace(/^[.,!?;:"'()]+|[.,!?;:"'()]+$/g, ''));
-      const compClean = compTokens
-        .map(w => w.replace(/^[.,!?;:"'()]+|[.,!?;:"'()]+$/g, ''));
-
-      if (slice.join(' ') === compClean.join(' ')) {
-        result.push(compound); // giữ nguyên từ ghép đẹp
-        i += len;
-        matched = true;
-        break;
-      }
-    }
-
-    if (!matched) {
-      // Không khớp từ ghép → xử lý từ đơn
-      const raw = tokenArr[i];
-      // Bỏ dấu câu bao quanh
-      const clean = raw.replace(/^[.,!?;:"'()\-–—]+|[.,!?;:"'()\-–—]+$/g, '');
-      i++;
-
-      if (!clean) continue;
-      if (/^\d+$/.test(clean)) continue;          // bỏ số thuần túy
-      if (clean.length < 2) continue;              // bỏ 1 ký tự
-      if (VIETNAMESE_STOPWORDS.has(clean)) continue; // bỏ stopword
-
-      result.push(clean);
-    }
-  }
-
-  return result;
+  return text
+    .split(/\s+/)
+    .map(w => w.replace(/^[.,!?;:"'()\-–—]+|[.,!?;:"'()\-–—]+$/g, '').trim())
+    .filter(w => w.length >= 2 && !/^\d+$/.test(w));
 }
 
 // Gọi backend AI để tách từ bằng AI
@@ -254,12 +92,25 @@ async function processTextWithAI(text, videoId) {
   }
 }
 
+// Video "đứng yên" hiển thị trong khung phụ đề lúc trống (chưa/không có phụ đề).
+const IDLE_SUBTITLE_VIDEO = "signs/dung_im.mp4";
+
+// Hiển thị video dung-im lặp trong khung phụ đề. Chỉ tạo lại nếu chưa có sẵn
+// (tránh video bị giật/khởi động lại mỗi lần caption trống liên tục).
+function showIdleSubtitleVideo() {
+  if (!wordChipsContainer) return;
+  if (wordChipsContainer.querySelector("video.idle-sign-video")) return;
+  const url = chrome.runtime.getURL(IDLE_SUBTITLE_VIDEO);
+  wordChipsContainer.innerHTML =
+    `<video class="idle-sign-video" src="${url}" autoplay loop muted playsinline></video>`;
+}
+
 // Render danh sách từ thành word chips
 async function renderWordChips(text, videoId = null) {
   if (!wordChipsContainer) return;
 
   if (!text || text === "...") {
-    wordChipsContainer.innerHTML = '<span class="subtitle-placeholder">Chờ phụ đề...</span>';
+    showIdleSubtitleVideo();
     return;
   }
 
@@ -272,7 +123,7 @@ async function renderWordChips(text, videoId = null) {
   }
 
   if (words.length === 0) {
-    wordChipsContainer.innerHTML = '<span class="subtitle-placeholder">Chờ phụ đề...</span>';
+    showIdleSubtitleVideo();
     return;
   }
 
