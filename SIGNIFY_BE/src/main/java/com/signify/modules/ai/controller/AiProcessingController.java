@@ -86,5 +86,15 @@ public class AiProcessingController {
         aiProcessingService.clearMongoCache();
         return ResponseEntity.ok(Map.of("message", "Cache cleared successfully"));
     }
+
+    @PostMapping("/translate-to-vietnamese")
+    public ResponseEntity<Map<String, String>> translateToVietnamese(@RequestBody Map<String, String> body) {
+        String text = body.get("text");
+        if (text == null || text.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        String translated = aiProcessingService.translateToVietnamese(text);
+        return ResponseEntity.ok(Map.of("original", text, "translated", translated));
+    }
 }
 
