@@ -82,14 +82,9 @@
   display: none;
 }
 
+/* Ẩn hẳn thẻ chữ fallback: yêu cầu chỉ hiển thị video, không hiện chữ. */
 .signify-fallback-card {
-  text-align: center;
-  padding: 15px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  box-sizing: border-box;
+  display: none !important;
 }
 
 .signify-fallback-label {
@@ -112,16 +107,14 @@
   animation: signify-pulse 2s infinite ease-in-out;
 }
 
+/* Ẩn hẳn dòng phụ đề chữ dưới video: chỉ hiển thị video ký hiệu. */
 .signify-caption-text {
-  font-size: 11px;
-  text-align: center;
-  padding-top: 8px;
-  color: #9ca3af;
-  font-style: italic;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
+  display: none !important;
+}
+
+/* Video luôn hiển thị (kể cả clip đứng yên khi rảnh). */
+.signify-video {
+  display: block !important;
 }
 
 /* Elegant micro-animations for interactive engagement */
@@ -137,4 +130,18 @@
     transform: scale(1.03);
     text-shadow: 0 0 20px rgba(167, 139, 250, 0.8);
   }
+}
+
+/*
+ * Ẩn phụ đề gốc của YouTube khỏi mắt người dùng NHƯNG vẫn giữ chữ trong DOM
+ * để Signify đọc và dịch. Dùng opacity/pointer-events thay vì display:none để
+ * YouTube vẫn render text node bình thường.
+ * Class này được thêm/xoá trên <html> bởi content.js.
+ */
+html.signify-hide-native-cc .ytp-caption-window-container,
+html.signify-hide-native-cc .caption-window,
+html.signify-hide-native-cc .ytp-caption-window-bottom,
+html.signify-hide-native-cc .ytp-caption-window-top {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

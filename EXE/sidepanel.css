@@ -164,6 +164,14 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* Video "đứng yên" hiển thị trong khung phụ đề lúc trống */
+.idle-sign-video {
+  max-height: 120px;
+  max-width: 100%;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
 /* ==============================
    Paywall Overlay
    ============================== */

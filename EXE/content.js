@@ -20,10 +20,19 @@ function safeSendMessage(msg) {
   }
 }
 
-// Hàm lấy ID của video YouTube từ đường dẫn
+// Hàm lấy ID YouTube (chỉ trả về ID thuần, không kèm URL/đường dẫn)
 function getVideoId() {
-  const urlParams = new URLSearchParams(window.location.search);
-  return urlParams.get('v') || window.location.pathname; 
+  // 1) Trang xem thường: youtube.com/watch?v=<ID>
+  const v = new URLSearchParams(window.location.search).get('v');
+  if (v) return v;
+
+  // 2) Dạng rút gọn / Shorts / embed: /shorts/<ID>, /embed/<ID>, youtu.be/<ID>
+  const m = window.location.pathname.match(/\/(?:shorts|embed)\/([\w-]{11})/)
+        || window.location.pathname.match(/^\/([\w-]{11})$/);
+  if (m) return m[1];
+
+  // Không xác định được ID -> trả rỗng (không gửi cả URL)
+  return "";
 }
 
 function startTracking(videoElement) {

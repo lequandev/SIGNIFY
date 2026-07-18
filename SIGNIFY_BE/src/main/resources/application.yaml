@@ -32,4 +32,29 @@ springdoc:
     path: /swagger-ui.html
 
 gemini:
-  api-key: ${GEMINI_API_KEY:AIzaSyDo3u3GIgO1OJaMf_-oNnfdSaDpMDon5RY}
+  # Không hard-code key ở đây. Đặt GEMINI_API_KEY trong file .env (không commit).
+  api-key: ${GEMINI_API_KEY:}
+
+anthropic:
+  # Đặt ANTHROPIC_API_KEY trong .env (không commit). Dùng để tách gloss thay Gemini.
+  api-key: ${ANTHROPIC_API_KEY:}
+  model: ${ANTHROPIC_MODEL:claude-3-5-haiku-20241022}
+
+groq:
+  # Groq (groq.com) — tương thích OpenAI, nhanh + có free tier. Đặt GROQ_API_KEY trong .env.
+  # Vẫn nhận GROK_API_KEY/GROK_MODEL cũ để tương thích ngược.
+  api-key: ${GROQ_API_KEY:${GROK_API_KEY:}}
+  model: ${GROQ_MODEL:${GROK_MODEL:llama-3.3-70b-versatile}}
+
+cloudinary:
+  # URL gốc chứa video ký hiệu trên Cloudinary. Ví dụ:
+  # https://res.cloudinary.com/<cloud_name>/video/upload/signify/animations
+  # Backend sẽ ghép "/<slug>.mp4" vào sau. Đặt CLOUDINARY_VIDEO_BASE_URL trong .env.
+  video-base-url: ${CLOUDINARY_VIDEO_BASE_URL:}
+
+video:
+  # File CSV ánh xạ từ đồng nghĩa -> slug video thật trên Cloudinary.
+  # Mỗi dòng: canonical,slug,aliases (aliases ngăn nhau bằng '|').
+  # Ví dụ: chăm chỉ,cham-chi,siêng|siêng năng|cần cù|chăm
+  # Sửa file bằng Excel/Sheets rồi restart để nạp lại. Đổi đường dẫn qua VIDEO_SLUG_ALIASES_FILE.
+  slug-aliases-file: ${VIDEO_SLUG_ALIASES_FILE:slug-aliases.csv}

@@ -108,9 +108,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open
   }
 
+  // Cào transcript qua backend (không cần bật CC). Backend tự đọc trang YouTube,
+  // lấy caption track và parse thành các đoạn { start, end, text } (ms).
+  if (message.action === "fetch_youtube_transcript") {
+    chrome.storage.local.get("backendPort", (data) => {
+      const port = data.backendPort || activePort;
+      const videoId = message.videoId;
+      const url = `http://127.0.0.1:${port}/api/ai/youtube-transcript?videoId=${encodeURIComponent(videoId)}`;
+      console.log("Background fetching transcript from backend:", url);
+
+      fetch(url, { method: 'GET' })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          sendResponse({ success: true, data: data });
+        })
+        .catch(err => {
+          console.error("Background transcript fetch failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true; // Keep channel open
+  }
+
   if (message.action === "fetch_youtube_caption") {
     console.log("Background fetching YouTube caption track:", message.url);
-    fetch(message.url)
+    
+    // Fetch với headers để giả lập browser request
+    fetch(message.url, {
+      headers: {
+        'Accept': '*/*',
+        'Accept-Language': 'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Referer': 'https://www.youtube.com/',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    })
       .then(response => {
         if (!response.ok) {
           throw new Error(`Failed to fetch caption: ${response.statusText}`);
@@ -124,6 +160,67 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         console.error("Background failed to fetch caption track:", err);
         sendResponse({ success: false, error: err.toString() });
       });
+    return true; // Keep channel open
+  }
+
+  if (message.action === "fetch_caption_via_api") {
+    console.log("Fetching caption via YouTube Data API for video:", message.videoId);
+    
+    chrome.storage.local.get(['youtube_api_key'], (result) => {
+      const apiKey = result.youtube_api_key;
+      if (!apiKey) {
+        sendResponse({ success: false, error: "YouTube API key not found. Please set it in extension settings." });
+        return;
+      }
+
+      // YouTube Data API endpoint để lấy caption tracks
+      const apiUrl = `https://www.googleapis.com/youtube/v3/captions?part=snippet&videoId=${message.videoId}&key=${apiKey}`;
+      
+      fetch(apiUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`YouTube API error: ${response.status} ${response.statusText}`);
+          }
+          return response.json();
+        })
+        .then(data => {
+          if (!data.items || data.items.length === 0) {
+            throw new Error("No captions found for this video");
+          }
+
+          // Tìm caption tiếng Việt hoặc tiếng Anh
+          let selectedCaption = data.items.find(item => item.snippet.language === 'vi' || item.snippet.language.startsWith('vi'));
+          if (!selectedCaption) {
+            selectedCaption = data.items.find(item => item.snippet.language === 'en' || item.snippet.language.startsWith('en'));
+          }
+          if (!selectedCaption) {
+            selectedCaption = data.items[0];
+          }
+
+          console.log("Selected caption track:", selectedCaption.snippet.name);
+
+          // YouTube Data API không hỗ trợ download caption trực tiếp
+          // Chỉ trả về metadata để sử dụng với direct fetch
+          sendResponse({ 
+            success: false, 
+            error: "YouTube Data API does not support direct caption download. Only metadata is available.",
+            captionId: selectedCaption.id,
+            captionName: selectedCaption.snippet.name
+          });
+        })
+        .catch(err => {
+          console.error("YouTube Data API error:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true; // Keep channel open
+  }
+
+  if (message.action === "set_youtube_api_key") {
+    console.log("Setting YouTube API key");
+    chrome.storage.local.set({ youtube_api_key: message.apiKey }, () => {
+      sendResponse({ success: true });
+    });
     return true; // Keep channel open
   }
 
@@ -148,25 +245,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           }
           return response.json();
         })
-        .then(async (data) => {
-          console.log("Dictionary lookup response received, converting video paths:", data);
-
-          const processedData = [];
-          for (const item of data) {
-            if (item.animation && item.animation.startsWith('http')) {
-              console.log(`Converting ${item.word} animation to Base64...`);
-              const base64Url = await convertUrlToBase64(item.animation);
-              processedData.push({
-                word: item.word,
-                animation: base64Url
-              });
-            } else {
-              processedData.push(item);
-            }
-          }
-
-          console.log("All video resources converted to Base64 successfully!");
-          sendResponse({ success: true, data: processedData });
+        .then((data) => {
+          // Trả thẳng dữ liệu cho content.js (KHÔNG convert base64 tuần tự nữa — trước đây
+          // fetch từng mp4 gây trễ lớn, nhất là khi file 404). content.js sẽ tự convert
+          // base64 theo nhu cầu (lazy) chỉ cho clip sắp phát, xem convertAnimationsLazily.
+          sendResponse({ success: true, data: data });
         })
         .catch(err => {
           console.error("Background dictionary lookup failed:", err);
