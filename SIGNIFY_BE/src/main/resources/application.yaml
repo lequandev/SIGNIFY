@@ -51,6 +51,12 @@ cloudinary:
   # https://res.cloudinary.com/<cloud_name>/video/upload/signify/animations
   # Backend sẽ ghép "/<slug>.mp4" vào sau. Đặt CLOUDINARY_VIDEO_BASE_URL trong .env.
   video-base-url: ${CLOUDINARY_VIDEO_BASE_URL:}
+  # Dùng cho upload avatar (signed upload). Lấy tại Cloudinary Dashboard -> Settings -> API Keys.
+  cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+  api-key: ${CLOUDINARY_API_KEY:}
+  api-secret: ${CLOUDINARY_API_SECRET:}
+  # Thư mục lưu avatar trên Cloudinary.
+  avatar-folder: ${CLOUDINARY_AVATAR_FOLDER:signify/avatars}
 
 video:
   # File CSV ánh xạ từ đồng nghĩa -> slug video thật trên Cloudinary.

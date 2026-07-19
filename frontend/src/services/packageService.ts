@@ -12,6 +12,11 @@ export interface ServicePackage {
   description: string;
   price: string;
   duration: string;
+  durationDays?: number;
+  aiLimitPerDay?: number;
+  dailyUsageMinutes?: number | null;
+  maxAccounts?: number | null;
+  fullFeatures?: boolean;
   buttonText: string;
   isRecommended: boolean;
   badge: string | null;

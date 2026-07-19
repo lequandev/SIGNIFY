@@ -329,36 +329,36 @@ const VideoTranslationPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-900 text-slate-100 font-sans">
+    <div className="min-h-screen flex flex-col bg-surface-dim text-on-surface font-sans">
       <Header />
 
       <main className="flex-grow max-w-6xl mx-auto px-6 py-10 w-full flex flex-col gap-8">
         {/* Back and Title */}
         <div className="flex items-center justify-between">
-          <Link to="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors text-sm font-semibold">
+          <Link to="/" className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-sm font-semibold">
             <ArrowLeft className="w-4 h-4" />
             Quay về trang chủ
           </Link>
-          <div className="inline-flex items-center gap-2 px-3 py-1 bg-[#2563EB]/15 text-[#3b82f6] rounded-full text-xs font-bold uppercase tracking-wider">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-primary-container text-on-primary-container rounded-full text-xs font-bold uppercase tracking-wider">
             <Sparkles className="w-3.5 h-3.5 animate-pulse" />
             <span>AI Translation Live</span>
           </div>
         </div>
 
         {/* Input URL Card */}
-        <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700/60 rounded-3xl p-8 shadow-xl">
+        <div className="bg-surface-container/80 backdrop-blur-md border border-outline-variant rounded-3xl p-8 shadow-xl">
           <div className="max-w-2xl mx-auto text-center mb-6">
-            <h1 className="text-3xl font-extrabold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-violet-400">
+            <h1 className="text-3xl font-extrabold mb-2 text-primary">
               Trình Dịch Video YouTube Realtime
             </h1>
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-on-surface-variant">
               Dán đường dẫn YouTube công khai để tự động tách phụ đề và dịch ngôn ngữ ký hiệu tiếng Việt tức thời.
             </p>
           </div>
 
           <form onSubmit={handleLoadVideo} className="flex flex-col md:flex-row gap-4 max-w-3xl mx-auto">
             <div className="relative flex-grow">
-              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-slate-500">
+              <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-on-surface-variant">
                 <Youtube className="w-5 h-5" />
               </div>
               <input
@@ -366,14 +366,14 @@ const VideoTranslationPage: React.FC = () => {
                 value={youtubeUrl}
                 onChange={(e) => setYoutubeUrl(e.target.value)}
                 placeholder="Ví dụ: https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-                className="w-full bg-slate-950/80 border border-slate-700/80 rounded-2xl py-4 pl-12 pr-4 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
+                className="w-full bg-surface border border-outline-variant rounded-2xl py-4 pl-12 pr-4 text-sm text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
                 disabled={loading}
               />
             </div>
             <button
               type="submit"
               disabled={loading}
-              className="bg-blue-600 text-white font-bold px-8 py-4 rounded-2xl hover:bg-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-[0.98]"
+              className="bg-primary text-on-primary font-bold px-8 py-4 rounded-2xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-[0.98]"
             >
               {loading ? (
                 <>
@@ -390,7 +390,7 @@ const VideoTranslationPage: React.FC = () => {
           </form>
 
           {error && (
-            <p className="text-red-400 text-sm text-center mt-4 font-semibold">
+            <p className="text-error text-sm text-center mt-4 font-semibold">
               {error}
             </p>
           )}
@@ -402,18 +402,18 @@ const VideoTranslationPage: React.FC = () => {
             
             {/* Left side: YouTube Player & Subtitle text */}
             <div className="lg:col-span-8 flex flex-col gap-4">
-              <div className="aspect-video w-full bg-slate-950 rounded-3xl overflow-hidden border border-slate-700/50 shadow-2xl relative">
+              <div className="aspect-video w-full bg-surface-container-highest rounded-3xl overflow-hidden border border-outline-variant shadow-2xl relative">
                 <div id="youtube-iframe-player" className="w-full h-full" />
               </div>
               
               {/* Captions Overlay Card */}
-              <div className="bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 shadow-lg flex items-center justify-center min-h-[90px] text-center">
+              <div className="bg-surface-container border border-outline-variant rounded-2xl p-5 shadow-lg flex items-center justify-center min-h-[90px] text-center">
                 {activeSegment ? (
-                  <p className="text-lg md:text-xl font-medium text-white tracking-wide leading-relaxed">
+                  <p className="text-lg md:text-xl font-medium text-on-surface tracking-wide leading-relaxed">
                     {activeSegment.text}
                   </p>
                 ) : (
-                  <p className="text-slate-500 text-sm italic">
+                  <p className="text-on-surface-variant text-sm italic">
                     Chờ phụ đề từ dòng thời gian video...
                   </p>
                 )}
@@ -424,18 +424,18 @@ const VideoTranslationPage: React.FC = () => {
             <div className="lg:col-span-4 flex flex-col gap-6">
               
               {/* Interpreter Monitor Card */}
-              <div className="bg-slate-800/50 backdrop-blur-md border border-slate-700/60 rounded-3xl overflow-hidden shadow-2xl flex flex-col">
-                <div className="bg-slate-800/90 border-b border-slate-700/50 px-5 py-4 flex items-center justify-between">
-                  <span className="text-xs font-extrabold uppercase tracking-widest text-blue-400 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 animate-pulse text-violet-400" />
+              <div className="bg-surface-container/80 backdrop-blur-md border border-outline-variant rounded-3xl overflow-hidden shadow-2xl flex flex-col">
+                <div className="bg-surface-container-highest border-b border-outline-variant px-5 py-4 flex items-center justify-between">
+                  <span className="text-xs font-extrabold uppercase tracking-widest text-primary flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 animate-pulse text-tertiary" />
                     Phiên dịch ký hiệu Signify
                   </span>
                   <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-ping" />
                 </div>
                 
                 {/* Sign language video area */}
-                <div className="aspect-square bg-slate-950 flex items-center justify-center relative overflow-hidden p-2">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-violet-500/5 pointer-events-none" />
+                <div className="aspect-square bg-surface flex items-center justify-center relative overflow-hidden p-2">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-tertiary/5 pointer-events-none" />
                   
                   {/* High performance sign language mp4 video player */}
                   <video
@@ -451,14 +451,14 @@ const VideoTranslationPage: React.FC = () => {
                   {/* Fallback Word Card if no video playing */}
                   {currentAnimIndex === -1 && (
                     <div className="flex flex-col items-center justify-center text-center p-8 gap-4">
-                      <div className="w-16 h-16 rounded-full bg-slate-800/80 border border-slate-700/80 flex items-center justify-center text-blue-400 shadow-lg">
+                      <div className="w-16 h-16 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-primary shadow-lg">
                         <Sparkles className="w-8 h-8" />
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block mb-1">
+                        <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider block mb-1">
                           Từ khóa hiện tại
                         </span>
-                        <h3 className="text-2xl font-black text-white capitalize px-4 py-2 bg-slate-800/50 rounded-xl border border-slate-700/40 inline-block min-w-[120px]">
+                        <h3 className="text-2xl font-black text-on-surface capitalize px-4 py-2 bg-surface-container rounded-xl border border-outline-variant inline-block min-w-[120px]">
                           {fallbackWord || 'Chờ dịch...'}
                         </h3>
                       </div>
@@ -467,24 +467,24 @@ const VideoTranslationPage: React.FC = () => {
                 </div>
 
                 {/* Queue words list display */}
-                <div className="p-4 bg-slate-900/60 border-t border-slate-700/30 flex flex-wrap gap-2 items-center justify-center min-h-[60px]">
+                <div className="p-4 bg-surface border-t border-outline-variant flex flex-wrap gap-2 items-center justify-center min-h-[60px]">
                   {animationQueue.length > 0 ? (
                     animationQueue.map((item, idx) => (
                       <span
                         key={idx}
                         className={`text-xs font-bold px-2.5 py-1 rounded-full transition-all duration-300 ${
                           idx === currentAnimIndex
-                            ? 'bg-blue-600 text-white scale-110 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/45'
+                            ? 'bg-primary text-on-primary scale-110 shadow-lg shadow-primary/25 ring-2 ring-primary/45'
                             : idx < currentAnimIndex
-                            ? 'bg-slate-800 text-slate-500 line-through'
-                            : 'bg-slate-800 text-slate-300 border border-slate-700/40'
+                            ? 'bg-surface-container-high text-on-surface-variant line-through'
+                            : 'bg-surface-container text-on-surface border border-outline-variant'
                         }`}
                       >
                         {item.word}
                       </span>
                     ))
                   ) : (
-                    <span className="text-xs text-slate-500 italic">
+                    <span className="text-xs text-on-surface-variant italic">
                       Chưa có từ khóa dịch cho phân đoạn này
                     </span>
                   )}
@@ -492,13 +492,13 @@ const VideoTranslationPage: React.FC = () => {
               </div>
 
               {/* Interactive Transcript Panel */}
-              <div className="bg-slate-800/50 border border-slate-700/60 rounded-3xl shadow-xl flex flex-col h-[320px]">
-                <div className="px-5 py-4 border-b border-slate-700/50 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-blue-400" />
+              <div className="bg-surface-container/80 border border-outline-variant rounded-3xl shadow-xl flex flex-col h-[320px]">
+                <div className="px-5 py-4 border-b border-outline-variant flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-primary" />
                   <h3 className="text-sm font-bold">Bản dịch đồng bộ timeline</h3>
                 </div>
                 
-                <div className="flex-grow overflow-y-auto p-4 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                <div className="flex-grow overflow-y-auto p-4 flex flex-col gap-2 scrollbar-thin scrollbar-thumb-outline-variant scrollbar-track-transparent">
                   {transcript.map((item, idx) => {
                     const isActive = activeSegment === item;
                     
@@ -515,15 +515,15 @@ const VideoTranslationPage: React.FC = () => {
                         onClick={() => seekTo(item.start)}
                         className={`text-left p-3 rounded-xl flex gap-3 transition-all cursor-pointer items-start text-xs border ${
                           isActive
-                            ? 'bg-blue-600/15 border-blue-500/60 text-white shadow-lg'
-                            : 'bg-slate-900/30 border-slate-800 hover:bg-slate-800/80 hover:border-slate-700/50 text-slate-400'
+                            ? 'bg-primary-container border-primary text-on-primary-container shadow-lg'
+                            : 'bg-surface border-outline-variant hover:bg-surface-container hover:border-outline text-on-surface-variant'
                         }`}
                       >
-                        <span className={`flex items-center gap-1 font-mono font-bold shrink-0 ${isActive ? 'text-blue-400' : 'text-slate-500'}`}>
+                        <span className={`flex items-center gap-1 font-mono font-bold shrink-0 ${isActive ? 'text-primary' : 'text-on-surface-variant'}`}>
                           <Clock className="w-3.5 h-3.5" />
                           {formatTime(item.start)}
                         </span>
-                        <span className={`leading-relaxed ${isActive ? 'font-medium' : ''}`}>
+                        <span className={`leading-relaxed ${isActive ? 'font-medium text-on-surface' : ''}`}>
                           {item.text}
                         </span>
                       </button>

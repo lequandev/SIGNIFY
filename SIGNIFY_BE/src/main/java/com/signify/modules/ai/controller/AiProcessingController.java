@@ -6,9 +6,12 @@ import com.signify.modules.ai.dto.SignData;
 import com.signify.modules.ai.dto.TranscriptEvent;
 import com.signify.modules.ai.model.GlossaryTerm;
 import com.signify.modules.ai.service.AiProcessingService;
+import com.signify.modules.entitlement.service.EntitlementService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,9 +24,24 @@ import java.util.Map;
 public class AiProcessingController {
 
     private final AiProcessingService aiProcessingService;
+    private final EntitlementService entitlementService;
 
     @PostMapping("/dictionary-lookup")
-    public ResponseEntity<List<SignData>> dictionaryLookup(@Valid @RequestBody DictionaryLookupRequest request) {
+    public ResponseEntity<?> dictionaryLookup(@Valid @RequestBody DictionaryLookupRequest request) {
+        String userId = getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "code", "AUTH_REQUIRED",
+                    "message", "Vui lòng đăng nhập Signify để sử dụng extension."
+            ));
+        }
+        if (!entitlementService.canUseFeature(userId)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "code", "FREE_DAILY_LIMIT_REACHED",
+                    "message", "Bạn đã dùng hết 20 phút miễn phí hôm nay. Vui lòng nâng cấp gói để tiếp tục."
+            ));
+        }
+
         List<SignData> response = aiProcessingService.dictionaryLookup(request.getWords(), request.getText());
         return ResponseEntity.ok(response);
     }
@@ -34,7 +52,21 @@ public class AiProcessingController {
      * -> ["hôm nay","tìm hiểu","trí tuệ nhân tạo","AI","thay đổi","cuộc sống hiện đại"]
      */
     @PostMapping("/segment")
-    public ResponseEntity<List<String>> segment(@Valid @RequestBody SegmentRequest request) {
+    public ResponseEntity<?> segment(@Valid @RequestBody SegmentRequest request) {
+        String userId = getCurrentUserId();
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of(
+                    "code", "AUTH_REQUIRED",
+                    "message", "Vui lòng đăng nhập Signify để sử dụng extension."
+            ));
+        }
+        if (!entitlementService.canUseFeature(userId)) {
+            return ResponseEntity.status(403).body(Map.of(
+                    "code", "FREE_DAILY_LIMIT_REACHED",
+                    "message", "Bạn đã dùng hết 20 phút miễn phí hôm nay. Vui lòng nâng cấp gói để tiếp tục."
+            ));
+        }
+
         List<String> response = aiProcessingService.segmentText(null, request.getText());
         return ResponseEntity.ok(response);
     }
@@ -95,6 +127,14 @@ public class AiProcessingController {
         }
         String translated = aiProcessingService.translateToVietnamese(text);
         return ResponseEntity.ok(Map.of("original", text, "translated", translated));
+    }
+
+    private String getCurrentUserId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.isAuthenticated() && !"anonymousUser".equals(auth.getPrincipal())) {
+            return auth.getName();
+        }
+        return null;
     }
 }
 

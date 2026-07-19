@@ -2,12 +2,15 @@ package com.signify.modules.payment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.signify.modules.business.service.BusinessService;
 import com.signify.modules.payment.dto.request.CreatePaymentRequest;
 import com.signify.modules.payment.dto.response.PaymentResponse;
 import com.signify.modules.payment.model.Payment;
 import com.signify.modules.payment.repository.PaymentRepository;
 import com.signify.modules.subscription.model.ServicePackage;
+import com.signify.modules.subscription.model.Subscription;
 import com.signify.modules.subscription.repository.ServicePackageRepository;
+import com.signify.modules.subscription.repository.SubscriptionRepository;
 import com.signify.modules.subscription.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
 import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+import vn.payos.model.v2.paymentRequests.PaymentLink;
 import vn.payos.model.v2.paymentRequests.PaymentLinkItem;
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -36,7 +40,9 @@ public class PaymentService {
     private final PayOS payOS;
     private final PaymentRepository paymentRepository;
     private final ServicePackageRepository servicePackageRepository;
+    private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+    private final BusinessService businessService;
 
     @Value("${payos.return-url}")
     private String returnUrl;
@@ -49,17 +55,25 @@ public class PaymentService {
         ServicePackage servicePackage = servicePackageRepository.findById(request.getPackageId())
                 .orElseThrow(() -> new RuntimeException("Package not found"));
 
+        if (servicePackage.getPrice() == null || servicePackage.getPrice().equalsIgnoreCase("Liên hệ") || servicePackage.getDurationDays() == null) {
+            throw new RuntimeException("Gói này yêu cầu liên hệ trực tiếp. Vui lòng liên hệ bộ phận kinh doanh.");
+        }
+
+        // Convert String price (e.g., "49,000") to numeric format before creating payment record
+        String priceClean = servicePackage.getPrice().replace(",", "").replace("đ", "").trim();
+        BigDecimal amount = new BigDecimal(priceClean);
+
         // Generate unique orderCode (must be less than 9007199254740991)
         Long orderCode = generateOrderCode();
 
-        // Convert String price (e.g., "39,000") to numeric format
-        String priceClean = servicePackage.getPrice().replace(",", "");
-        BigDecimal amount = "Liên hệ".equalsIgnoreCase(priceClean) ? BigDecimal.ZERO : new BigDecimal(priceClean);
-
         // Create Payment record
+        String organizationName = "business".equals(servicePackage.getPlanType())
+                ? resolveOrganizationName(request.getName(), servicePackage.getName())
+                : null;
         Payment payment = Payment.builder()
                 .userId(userId)
                 .subscriptionId(servicePackage.getId())
+                .organizationName(organizationName)
                 .amount(amount)
                 .orderCode(orderCode)
                 .status("PENDING")
@@ -68,9 +82,6 @@ public class PaymentService {
         paymentRepository.save(payment);
 
         try {
-            if ("Liên hệ".equalsIgnoreCase(priceClean)) {
-                throw new RuntimeException("Please contact sales for this package");
-            }
             long price = Long.parseLong(priceClean);
             
             PaymentLinkItem item = PaymentLinkItem.builder()
@@ -79,10 +90,12 @@ public class PaymentService {
                     .price(price)
                     .build();
 
+            String paymentDescription = "SIGNIFY" + orderCode;
+
             CreatePaymentLinkRequest paymentLinkRequest = CreatePaymentLinkRequest.builder()
                     .orderCode(orderCode)
                     .amount(price)
-                    .description("Signify " + servicePackage.getName())
+                    .description(paymentDescription)
                     .returnUrl(returnUrl)
                     .cancelUrl(cancelUrl)
                     .items(Collections.singletonList(item))
@@ -97,7 +110,7 @@ public class PaymentService {
                     .accountName(data.getAccountName())
                     .accountNumber(data.getAccountNumber())
                     .amount(data.getAmount().intValue())
-                    .description(data.getDescription())
+                    .description(paymentDescription)
                     .build();
         } catch (Exception e) {
             log.error("Error creating PayOS payment link: ", e);
@@ -105,6 +118,7 @@ public class PaymentService {
         }
     }
 
+    @Transactional
     public ObjectNode handleWebhook(ObjectNode body) {
         ObjectMapper mapper = new ObjectMapper();
         ObjectNode response = mapper.createObjectNode();
@@ -119,15 +133,21 @@ public class PaymentService {
                 Optional<Payment> paymentOpt = paymentRepository.findByOrderCode(orderCode);
                 if (paymentOpt.isPresent()) {
                     Payment payment = paymentOpt.get();
+
+                    // Idempotency: check if already processed
+                    if ("PAID".equals(payment.getStatus())) {
+                        provisionBusinessIfNeeded(payment, null);
+                        log.info("Webhook already processed for orderCode={}", orderCode);
+                        response.put("error", 0);
+                        response.put("message", "Already processed");
+                        return response;
+                    }
+
                     if ("00".equals(code) || "PAID".equalsIgnoreCase(code) || "SUCCESS".equalsIgnoreCase(code)) {
-                        payment.setStatus("PAID");
-                        payment.setTransactionCode(reference);
-                        payment.setPaidAt(LocalDateTime.now());
+                        activatePaidPayment(payment, reference);
+                    } else {
+                        payment.setStatus("CANCELLED");
                         paymentRepository.save(payment);
-                        
-                        // Create subscription for the user
-                        subscriptionService.createSubscription(payment.getUserId(), payment.getSubscriptionId());
-                        log.info("Subscription created for user {} and package {}", payment.getUserId(), payment.getSubscriptionId());
                     }
                 }
             }
@@ -142,19 +162,108 @@ public class PaymentService {
         return response;
     }
 
-    public Map<String, Object> checkStatus(Long orderCode) {
+    @Transactional
+    public Map<String, Object> checkStatus(Long orderCode, String userId) {
         Optional<Payment> payment = paymentRepository.findByOrderCode(orderCode);
         if (payment.isPresent()) {
-            return Map.of("status", payment.get().getStatus().toLowerCase()); // paid, cancelled, pending
+            Payment p = payment.get();
+
+            // Check ownership
+            if (!p.getUserId().equals(userId)) {
+                return Map.of("error", "Forbidden");
+            }
+
+            if ("PENDING".equals(p.getStatus())) {
+                syncPaymentStatusFromPayOS(p);
+            }
+
+            return Map.of("status", p.getStatus().toLowerCase()); // paid, cancelled, pending
         }
         return Map.of("status", "not_found");
     }
 
+    private void syncPaymentStatusFromPayOS(Payment payment) {
+        try {
+            PaymentLink paymentLink = payOS.paymentRequests().get(payment.getOrderCode());
+            if (paymentLink == null || paymentLink.getStatus() == null) {
+                return;
+            }
+
+            String payOsStatus = paymentLink.getStatus().getValue();
+            if ("PAID".equalsIgnoreCase(payOsStatus)) {
+                String reference = paymentLink.getTransactions() != null && !paymentLink.getTransactions().isEmpty()
+                        ? paymentLink.getTransactions().get(0).getReference()
+                        : "PAYOS_STATUS_SYNC";
+                activatePaidPayment(payment, reference);
+            } else if ("CANCELLED".equalsIgnoreCase(payOsStatus) || "EXPIRED".equalsIgnoreCase(payOsStatus) || "FAILED".equalsIgnoreCase(payOsStatus)) {
+                payment.setStatus(payOsStatus.toUpperCase());
+                paymentRepository.save(payment);
+            }
+        } catch (Exception e) {
+            log.warn("Could not sync PayOS status for orderCode={}: {}", payment.getOrderCode(), e.getMessage());
+        }
+    }
+
+    private void activatePaidPayment(Payment payment, String reference) {
+        if ("PAID".equals(payment.getStatus())) {
+            provisionBusinessIfNeeded(payment, null);
+            return;
+        }
+
+        payment.setStatus("PAID");
+        payment.setTransactionCode(reference);
+        payment.setPaidAt(LocalDateTime.now());
+        paymentRepository.save(payment);
+
+        Subscription subscription = subscriptionService.createSubscription(payment.getUserId(), payment.getSubscriptionId());
+        payment.setActivatedSubscriptionId(subscription.getId());
+        paymentRepository.save(payment);
+        provisionBusinessIfNeeded(payment, subscription);
+        log.info("Subscription created for user {} and package {}", payment.getUserId(), payment.getSubscriptionId());
+    }
+
     private Long generateOrderCode() {
-        // Simple generation based on timestamp + random to ensure uniqueness and fit in Long
-        long timestamp = new Date().getTime();
-        long random = new Random().nextInt(1000);
-        String code = String.valueOf(timestamp).substring(4) + random;
-        return Long.parseLong(code);
+        for (int attempt = 0; attempt < 20; attempt++) {
+            long timestamp = new Date().getTime();
+            long random = new Random().nextInt(100000);
+            String code = String.valueOf(timestamp).substring(4) + String.format("%05d", random);
+            Long orderCode = Long.parseLong(code);
+            if (paymentRepository.findByOrderCode(orderCode).isEmpty()) {
+                return orderCode;
+            }
+        }
+        throw new RuntimeException("Could not generate unique order code");
+    }
+
+    private void provisionBusinessIfNeeded(Payment payment, Subscription subscription) {
+        ServicePackage servicePackage = servicePackageRepository.findById(payment.getSubscriptionId()).orElse(null);
+        if (servicePackage == null || !"business".equals(servicePackage.getPlanType())) {
+            return;
+        }
+
+        Subscription targetSubscription = subscription;
+        if (targetSubscription == null && payment.getActivatedSubscriptionId() != null) {
+            targetSubscription = subscriptionRepository.findById(payment.getActivatedSubscriptionId()).orElse(null);
+        }
+        if (targetSubscription == null) {
+            targetSubscription = subscriptionService.getCurrentSubscription(payment.getUserId()).orElse(null);
+        }
+        if (targetSubscription == null) {
+            return;
+        }
+
+        businessService.provisionBusinessForSubscription(
+                payment.getUserId(),
+                targetSubscription,
+                servicePackage,
+                payment.getOrganizationName()
+        );
+    }
+
+    private String resolveOrganizationName(String name, String fallbackName) {
+        String trimmed = name == null ? "" : name.trim();
+        if (!trimmed.isEmpty()) return trimmed;
+        String fallback = fallbackName == null ? "" : fallbackName.trim();
+        return fallback.isEmpty() ? "Business Organization" : fallback;
     }
 }

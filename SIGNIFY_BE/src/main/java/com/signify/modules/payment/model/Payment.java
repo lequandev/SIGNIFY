@@ -24,6 +24,10 @@ public class Payment {
 
     String subscriptionId;
 
+    String activatedSubscriptionId;
+
+    String organizationName;
+
     BigDecimal amount;
 
     String paymentMethod;

@@ -18,4 +18,5 @@ public class SubscriptionResponse {
     LocalDateTime startDate;
     LocalDateTime endDate;
     String status;
+    Boolean active;
 }
