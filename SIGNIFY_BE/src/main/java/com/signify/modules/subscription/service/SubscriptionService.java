@@ -25,9 +25,9 @@ public class SubscriptionService {
         ServicePackage servicePackage = servicePackageRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
 
-        // Check if user already has an active subscription
-        Optional<Subscription> existingSub = subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
-        
+        // Check if user already has an active subscription that is still valid
+        Optional<Subscription> existingSub = getCurrentSubscription(userId);
+
         LocalDateTime startDate = LocalDateTime.now();
         if (existingSub.isPresent()) {
             Subscription sub = existingSub.get();
@@ -53,6 +53,19 @@ public class SubscriptionService {
     }
 
     public Optional<Subscription> getCurrentSubscription(String userId) {
-        return subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
+        LocalDateTime now = LocalDateTime.now();
+        Optional<Subscription> active = subscriptionRepository.findByUserIdAndStatus(userId, "ACTIVE");
+
+        if (active.isPresent()) {
+            Subscription subscription = active.get();
+            if (subscription.getEndDate() != null && subscription.getEndDate().isBefore(now)) {
+                subscription.setStatus("EXPIRED");
+                subscriptionRepository.save(subscription);
+                return Optional.empty();
+            }
+            return Optional.of(subscription);
+        }
+
+        return Optional.empty();
     }
 }

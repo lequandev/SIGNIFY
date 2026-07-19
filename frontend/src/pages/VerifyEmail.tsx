@@ -10,6 +10,8 @@ const VerifyEmail: React.FC = () => {
   const { token } = useParams<{ token: string }>();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
+  const pendingInviteRedirect = localStorage.getItem('pendingInviteRedirect');
+  const loginPath = pendingInviteRedirect ? `/login?redirect=${encodeURIComponent(pendingInviteRedirect)}` : '/login';
 
   const hasCalled = React.useRef(false);
 
@@ -34,12 +36,12 @@ const VerifyEmail: React.FC = () => {
   }, [token]);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6 font-sans selection:bg-[#2563EB] selection:text-white">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 sm:p-6 font-sans selection:bg-[#2563EB] selection:text-white">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 p-10 text-center"
+        className="w-full max-w-md bg-white rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 p-6 sm:p-8 md:p-10 text-center"
       >
         <Link to="/" className="flex flex-col items-center mb-10 group">
           <img 
@@ -71,7 +73,7 @@ const VerifyEmail: React.FC = () => {
               <p className="text-slate-500 font-medium px-4 leading-relaxed">{message}</p>
             </div>
             <Link
-              to="/login"
+              to={loginPath}
               className="inline-flex items-center justify-center gap-3 w-full bg-[#2563EB] text-white font-black py-5 rounded-2xl hover:bg-[#4F46E5] shadow-2xl shadow-[#2563EB]/30 transition-all active:scale-[0.98] group"
             >
               Đăng nhập ngay

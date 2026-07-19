@@ -61,11 +61,16 @@ public class SubscriptionController {
                     .startDate(sub.getStartDate())
                     .endDate(sub.getEndDate())
                     .status(sub.getStatus())
+                    .active(true)
                     .build();
             return ResponseEntity.ok(response);
         }
-        
-        return ResponseEntity.notFound().build();
+
+        return ResponseEntity.ok(SubscriptionResponse.builder()
+                .packageName("Miễn phí")
+                .status("FREE")
+                .active(false)
+                .build());
     }
 
     private String getCurrentUserId() {

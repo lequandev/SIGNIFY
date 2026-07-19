@@ -52,6 +52,9 @@ public class ServicePackageService {
                 .duration(durationText)
                 .durationDays(durationDays)
                 .aiLimitPerDay(request.getAiLimitPerDay() != null ? request.getAiLimitPerDay() : 10)
+                .dailyUsageMinutes(request.getDailyUsageMinutes())
+                .maxAccounts(request.getMaxAccounts())
+                .fullFeatures(request.getFullFeatures() != null ? request.getFullFeatures() : true)
                 .buttonText("Bắt Đầu Ngay")
                 .isRecommended(false)
                 .features(Arrays.asList(
@@ -101,6 +104,15 @@ public class ServicePackageService {
         if (request.getPlanType() != null) {
             pkg.setPlanType(request.getPlanType());
         }
+        if (request.getDailyUsageMinutes() != null) {
+            pkg.setDailyUsageMinutes(request.getDailyUsageMinutes());
+        }
+        if (request.getMaxAccounts() != null) {
+            pkg.setMaxAccounts(request.getMaxAccounts());
+        }
+        if (request.getFullFeatures() != null) {
+            pkg.setFullFeatures(request.getFullFeatures());
+        }
 
         ServicePackage updated = servicePackageRepository.save(pkg);
         return mapToResponse(updated);
@@ -123,6 +135,9 @@ public class ServicePackageService {
                 .duration(pkg.getDuration())
                 .durationDays(pkg.getDurationDays())
                 .aiLimitPerDay(pkg.getAiLimitPerDay())
+                .dailyUsageMinutes(pkg.getDailyUsageMinutes())
+                .maxAccounts(pkg.getMaxAccounts())
+                .fullFeatures(pkg.getFullFeatures())
                 .buttonText(pkg.getButtonText())
                 .isRecommended(pkg.getIsRecommended())
                 .badge(pkg.getBadge())

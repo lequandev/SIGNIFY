@@ -1,5 +1,8 @@
 package com.signify.modules.admin.service;
 
+import com.signify.modules.admin.dto.response.AdminSubscriptionResponse;
+import com.signify.modules.subscription.model.ServicePackage;
+import com.signify.modules.subscription.model.Subscription;
 import com.signify.modules.subscription.repository.ServicePackageRepository;
 import com.signify.modules.subscription.repository.SubscriptionRepository;
 import com.signify.modules.user.model.User;
@@ -32,17 +35,43 @@ public class AdminService {
         return userRepository.findAll();
     }
 
+    public List<AdminSubscriptionResponse> getSubscriptions() {
+        return subscriptionRepository.findAll()
+                .stream()
+                .map(this::toAdminSubscriptionResponse)
+                .toList();
+    }
+
     public User updateUser(String id, Map<String, String> updates) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("User not found"));
-        
+
         if (updates.containsKey("role")) {
             user.setRole(updates.get("role"));
         }
         if (updates.containsKey("status")) {
             user.setStatus(updates.get("status"));
         }
-        
+
         return userRepository.save(user);
+    }
+
+    private AdminSubscriptionResponse toAdminSubscriptionResponse(Subscription subscription) {
+        User user = userRepository.findById(subscription.getUserId()).orElse(null);
+        ServicePackage servicePackage = packageRepository.findById(subscription.getPackageId()).orElse(null);
+
+        return AdminSubscriptionResponse.builder()
+                .subscriptionId(subscription.getId())
+                .userId(subscription.getUserId())
+                .userName(user != null ? user.getFullName() : null)
+                .userEmail(user != null ? user.getEmail() : null)
+                .packageId(subscription.getPackageId())
+                .packageName(servicePackage != null ? servicePackage.getName() : null)
+                .planType(servicePackage != null ? servicePackage.getPlanType() : null)
+                .status(subscription.getStatus())
+                .startDate(subscription.getStartDate())
+                .endDate(subscription.getEndDate())
+                .createdAt(subscription.getCreatedAt())
+                .build();
     }
 }

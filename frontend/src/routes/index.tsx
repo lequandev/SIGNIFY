@@ -1,13 +1,20 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
 import AuthPage from '../pages/AuthPage';
 import VerifyEmail from '../pages/VerifyEmail';
+import ForgotPasswordPage from '../pages/ForgotPasswordPage';
+import ProfilePage from '../pages/ProfilePage';
 import ServicePackage from '../pages/ServicePackage';
 import PaymentPage from '../pages/PaymentPage';
+import BusinessPage from '../pages/BusinessPage';
+import AcceptInvitePage from '../pages/AcceptInvitePage';
+import AboutPage from '../pages/AboutPage';
+import ContactPage from '../pages/ContactPage';
 import AdminLayout from '../components/admin/AdminLayout';
 import DashboardOverview from '../pages/admin/DashboardOverview';
 import UserManagement from '../pages/admin/UserManagement';
 import PackageManagement from '../pages/admin/PackageManagement';
+import SubscriptionManagement from '../pages/admin/SubscriptionManagement';
 
 export const router = createBrowserRouter([
   {
@@ -27,8 +34,24 @@ export const router = createBrowserRouter([
     element: <VerifyEmail />,
   },
   {
+    path: '/forgot-password',
+    element: <ForgotPasswordPage />,
+  },
+  {
+    path: '/profile',
+    element: <ProfilePage />,
+  },
+  {
     path: '/packages',
     element: <ServicePackage />,
+  },
+  {
+    path: '/about',
+    element: <AboutPage />,
+  },
+  {
+    path: '/contact',
+    element: <ContactPage />,
   },
   {
     path: '/payment',
@@ -41,6 +64,14 @@ export const router = createBrowserRouter([
   {
     path: '/payment-cancel',
     element: <PaymentPage />, // Use the same component but it will show cancel status
+  },
+  {
+    path: '/business',
+    element: <BusinessPage />,
+  },
+  {
+    path: '/accept-invite/:token',
+    element: <AcceptInvitePage />,
   },
   {
     path: '/admin',
@@ -60,7 +91,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'subscriptions',
-        element: <div className="p-10 text-center font-bold text-slate-400 italic">Subscription tracking coming soon...</div>,
+        element: <SubscriptionManagement />,
       },
     ],
   },

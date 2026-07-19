@@ -20,136 +20,169 @@ public class DataSeeder implements CommandLineRunner {
     private final ServicePackageRepository servicePackageRepository;
 
     @Override
-    public void run(String... args) throws Exception {
-        if (servicePackageRepository.count() == 0) {
-            log.info("Seeding service packages...");
-            
-            List<ServicePackage> packages = new ArrayList<>();
+    public void run(String... args) {
+        log.info("Syncing default service packages...");
 
-            // Individual - 1 Month
-            packages.add(ServicePackage.builder()
-                    .planType("individual")
-                    .name("1 Tháng")
-                    .price("39,000")
-                    .duration("tháng")
-                    .durationDays(30)
-                    .description("Linh hoạt trải nghiệm mọi tính năng cao cấp theo từng tháng.")
-                    .buttonText("Bắt Đầu Ngay")
-                    .isRecommended(false)
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Cpu", "Dịch thuật AI theo thời gian thực"),
-                            new ServicePackage.Feature("Zap", "Không giới hạn số phút sử dụng mỗi ngày"),
-                            new ServicePackage.Feature("Globe", "Hỗ trợ tất cả các phương ngữ ngôn ngữ ký hiệu"),
-                            new ServicePackage.Feature("Shield", "Trải nghiệm hoàn toàn không quảng cáo")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
+        List<ServicePackage> defaults = Arrays.asList(
+                personalPackage(
+                        "Gói Cá nhân - 1 tháng",
+                        "49,000",
+                        "tháng",
+                        30,
+                        "Truy cập đầy đủ Signify trong 1 tháng với thời gian sử dụng không giới hạn mỗi ngày.",
+                        "Chọn gói 1 tháng",
+                        false,
+                        null
+                ),
+                personalPackage(
+                        "Gói Cá nhân - 6 tháng",
+                        "250,000",
+                        "6 tháng",
+                        180,
+                        "Tiết kiệm hơn khi sử dụng đầy đủ các tính năng Signify trong 6 tháng.",
+                        "Chọn gói 6 tháng",
+                        true,
+                        "Tiết kiệm"
+                ),
+                personalPackage(
+                        "Gói Cá nhân - 12 tháng",
+                        "489,000",
+                        "12 tháng",
+                        365,
+                        "Gói cá nhân tốt nhất cho người dùng muốn sử dụng Signify lâu dài.",
+                        "Chọn gói 12 tháng",
+                        false,
+                        "Tốt nhất"
+                ),
+                businessPackage(
+                        "Gói Doanh nghiệp - 1 tháng",
+                        "500,000",
+                        "tháng",
+                        30,
+                        "Quản lý tối đa 20 tài khoản trong một doanh nghiệp trong 1 tháng.",
+                        "Chọn Business 1 tháng",
+                        false,
+                        null
+                ),
+                businessPackage(
+                        "Gói Doanh nghiệp - 6 tháng",
+                        "2,799,000",
+                        "6 tháng",
+                        180,
+                        "Giải pháp doanh nghiệp 6 tháng cho đội nhóm cần quản lý thành viên tập trung.",
+                        "Chọn Business 6 tháng",
+                        true,
+                        "Doanh nghiệp chọn"
+                ),
+                businessPackage(
+                        "Gói Doanh nghiệp - 12 tháng",
+                        "5,500,000",
+                        "12 tháng",
+                        365,
+                        "Giải pháp dài hạn cho doanh nghiệp với đầy đủ quyền quản lý thành viên.",
+                        "Chọn Business 12 tháng",
+                        false,
+                        "Dài hạn"
+                )
+        );
 
-            // Individual - 6 Months
-            packages.add(ServicePackage.builder()
-                    .planType("individual")
-                    .name("6 Tháng")
-                    .price("200,000")
-                    .duration("6 tháng")
-                    .durationDays(180)
-                    .description("Tiết kiệm chi phí hơn với gói đăng ký nửa năm.")
-                    .buttonText("Chọn Gói 6 Tháng")
-                    .isRecommended(true)
-                    .badge("Tiết Kiệm Nhất")
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Cpu", "Dịch thuật AI theo thời gian thực"),
-                            new ServicePackage.Feature("Zap", "Không giới hạn số phút sử dụng mỗi ngày"),
-                            new ServicePackage.Feature("Globe", "Hỗ trợ tất cả các phương ngữ ngôn ngữ ký hiệu"),
-                            new ServicePackage.Feature("Shield", "Trải nghiệm hoàn toàn không quảng cáo"),
-                            new ServicePackage.Feature("MessageSquare", "Ưu tiên xử lý dữ liệu AI tốc độ cao")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
+        defaults.forEach(this::upsertDefaultPackage);
+        log.info("Default service packages synced successfully.");
+    }
 
-            // Individual - 12 Months
-            packages.add(ServicePackage.builder()
-                    .planType("individual")
-                    .name("12 Tháng")
-                    .price("400,000")
-                    .duration("năm")
-                    .durationDays(365)
-                    .description("Giải pháp kết nối dài hạn và trọn vẹn nhất.")
-                    .buttonText("Đăng Ký Gói Năm")
-                    .isRecommended(false)
-                    .badge("Phổ Biến Nhất")
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Cpu", "Dịch thuật AI theo thời gian thực"),
-                            new ServicePackage.Feature("Zap", "Không giới hạn số phút sử dụng mỗi ngày"),
-                            new ServicePackage.Feature("Globe", "Hỗ trợ tất cả các phương ngữ ngôn ngữ ký hiệu"),
-                            new ServicePackage.Feature("Shield", "Trải nghiệm hoàn toàn không quảng cáo"),
-                            new ServicePackage.Feature("MessageSquare", "Ưu tiên xử lý dữ liệu AI tốc độ cao"),
-                            new ServicePackage.Feature("Users", "Trải nghiệm sớm các tính năng mới")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
+    private void upsertDefaultPackage(ServicePackage desired) {
+        List<ServicePackage> matches = servicePackageRepository.findAllByPlanTypeAndDurationDays(
+                desired.getPlanType(),
+                desired.getDurationDays()
+        );
 
-            // Business - Small
-            packages.add(ServicePackage.builder()
-                    .planType("business")
-                    .name("Doanh Nghiệp Nhỏ")
-                    .price("799,000")
-                    .duration("tháng")
-                    .durationDays(30)
-                    .description("Lựa chọn hoàn hảo cho các nhóm nhỏ và tổ chức quy mô vừa.")
-                    .buttonText("Dùng Thử Miễn Phí")
-                    .isRecommended(false)
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Users", "Hỗ trợ tối đa 5 thành viên"),
-                            new ServicePackage.Feature("Cpu", "Công nghệ dịch thuật AI nâng cao"),
-                            new ServicePackage.Feature("Shield", "Bảng điều khiển dành cho quản trị viên"),
-                            new ServicePackage.Feature("Globe", "Thư viện ký hiệu tùy chỉnh riêng")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
-
-            // Business - Large
-            packages.add(ServicePackage.builder()
-                    .planType("business")
-                    .name("Doanh Nghiệp Lớn")
-                    .price("1,999,000")
-                    .duration("tháng")
-                    .durationDays(30)
-                    .description("Mở rộng giải pháp kết nối toàn diện cho toàn bộ công ty.")
-                    .buttonText("Nâng Cấp Lên Gói Pro")
-                    .isRecommended(true)
-                    .badge("Gợi Ý Cho Bạn")
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Users", "Hỗ trợ tối đa 25 thành viên"),
-                            new ServicePackage.Feature("Cpu", "Hệ thống AI chuẩn doanh nghiệp"),
-                            new ServicePackage.Feature("Shield", "Bảo mật nâng cao & Đăng nhập một lần (SSO)"),
-                            new ServicePackage.Feature("Globe", "Hỗ trợ đa vùng và đa quốc gia"),
-                            new ServicePackage.Feature("Video", "Cung cấp quyền truy cập API để tích hợp hệ thống")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
-
-            // Enterprise
-            packages.add(ServicePackage.builder()
-                    .planType("business")
-                    .name("Tập Đoàn")
-                    .price("Liên hệ")
-                    .duration("báo giá")
-                    .durationDays(null)
-                    .description("Giải pháp thiết kế riêng biệt nhằm tạo nên tầm ảnh hưởng quy mô lớn.")
-                    .buttonText("Liên Hệ Phòng Kinh Doanh")
-                    .isRecommended(false)
-                    .features(Arrays.asList(
-                            new ServicePackage.Feature("Users", "Không giới hạn số lượng thành viên"),
-                            new ServicePackage.Feature("Cpu", "Huấn luyện mô hình AI chuyên biệt theo yêu cầu"),
-                            new ServicePackage.Feature("Shield", "Hỗ trợ kỹ thuật cao cấp 24/7"),
-                            new ServicePackage.Feature("Globe", "Tùy chọn triển khai hệ thống riêng (On-premise/Cloud)"),
-                            new ServicePackage.Feature("MessageSquare", "Có chuyên viên quản lý tài khoản riêng")
-                    ))
-                    .createdAt(LocalDateTime.now())
-                    .build());
-
-            servicePackageRepository.saveAll(packages);
-            log.info("Service packages seeded successfully!");
+        ServicePackage pkg = matches.isEmpty() ? new ServicePackage() : matches.get(0);
+        pkg.setPlanType(desired.getPlanType());
+        pkg.setName(desired.getName());
+        pkg.setDescription(desired.getDescription());
+        pkg.setPrice(desired.getPrice());
+        pkg.setDuration(desired.getDuration());
+        pkg.setDurationDays(desired.getDurationDays());
+        pkg.setAiLimitPerDay(desired.getAiLimitPerDay());
+        pkg.setDailyUsageMinutes(desired.getDailyUsageMinutes());
+        pkg.setMaxAccounts(desired.getMaxAccounts());
+        pkg.setFullFeatures(desired.getFullFeatures());
+        pkg.setButtonText(desired.getButtonText());
+        pkg.setIsRecommended(desired.getIsRecommended());
+        pkg.setBadge(desired.getBadge());
+        pkg.setFeatures(desired.getFeatures());
+        if (pkg.getCreatedAt() == null) {
+            pkg.setCreatedAt(LocalDateTime.now());
         }
+
+        servicePackageRepository.save(pkg);
+    }
+
+    private ServicePackage personalPackage(
+            String name,
+            String price,
+            String duration,
+            Integer durationDays,
+            String description,
+            String buttonText,
+            Boolean isRecommended,
+            String badge
+    ) {
+        return ServicePackage.builder()
+                .planType("individual")
+                .name(name)
+                .price(price)
+                .duration(duration)
+                .durationDays(durationDays)
+                .description(description)
+                .aiLimitPerDay(null)
+                .dailyUsageMinutes(null)
+                .maxAccounts(null)
+                .fullFeatures(true)
+                .buttonText(buttonText)
+                .isRecommended(isRecommended)
+                .badge(badge)
+                .features(Arrays.asList(
+                        new ServicePackage.Feature("Zap", "Sử dụng không giới hạn thời gian mỗi ngày"),
+                        new ServicePackage.Feature("Cpu", "Truy cập đầy đủ các tính năng của Signify"),
+                        new ServicePackage.Feature("Sparkles", "Nhận các cập nhật tính năng mới trong thời gian gói còn hiệu lực")
+                ))
+                .createdAt(LocalDateTime.now())
+                .build();
+    }
+
+    private ServicePackage businessPackage(
+            String name,
+            String price,
+            String duration,
+            Integer durationDays,
+            String description,
+            String buttonText,
+            Boolean isRecommended,
+            String badge
+    ) {
+        return ServicePackage.builder()
+                .planType("business")
+                .name(name)
+                .price(price)
+                .duration(duration)
+                .durationDays(durationDays)
+                .description(description)
+                .aiLimitPerDay(null)
+                .dailyUsageMinutes(null)
+                .maxAccounts(20)
+                .fullFeatures(true)
+                .buttonText(buttonText)
+                .isRecommended(isRecommended)
+                .badge(badge)
+                .features(Arrays.asList(
+                        new ServicePackage.Feature("Users", "Tối đa 20 tài khoản trong một doanh nghiệp"),
+                        new ServicePackage.Feature("Shield", "01 tài khoản Admin quản lý toàn bộ doanh nghiệp"),
+                        new ServicePackage.Feature("UserCog", "Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên"),
+                        new ServicePackage.Feature("Globe", "Quản lý danh sách thành viên và quyền truy cập trên một hệ thống tập trung"),
+                        new ServicePackage.Feature("Zap", "Toàn bộ thành viên được sử dụng đầy đủ các tính năng của Signify")
+                ))
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 }
