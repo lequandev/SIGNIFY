@@ -1,69 +1,70 @@
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import {
-  Mail,
-  Lock,
-  ArrowRight,
-  User,
-  ArrowLeft,
-  CheckCircle2,
-} from "lucide-react";
-import { GoogleLogin } from "@react-oauth/google";
-import api from "../services/api";
-import { setLogin } from "../store/authSlice";
-import { useToast } from "../context/ToastContext";
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { GoogleLogin } from '@react-oauth/google';
+import { CheckCircle2, Shield, Eye, EyeOff } from 'lucide-react';
+import api from '../services/api';
+import { setLogin } from '../store/authSlice';
+import { useToast } from '../context/ToastContext';
 
 const AuthPage = () => {
   const { showToast } = useToast();
   const location = useLocation();
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const [isSignIn, setIsSignIn] = useState(location.pathname !== "/register");
-
-  useEffect(() => {
-    setIsSignIn(location.pathname !== "/register");
-  }, [location.pathname]);
-
-  const toggleAuth = () => {
-    const newPath = isSignIn ? "/register" : "/login";
-    navigate(newPath);
+  const searchParams = new URLSearchParams(location.search);
+  const rawRedirect = searchParams.get('redirect');
+  const redirectPath = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '';
+  const redirectQuery = redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : '';
+  const isInviteRedirect = redirectPath.startsWith('/accept-invite/');
+  const navigateAfterAuth = (user: any) => {
+    if (isInviteRedirect) {
+      localStorage.removeItem('pendingInviteRedirect');
+    }
+    navigate(redirectPath || (user.role === 'ADMIN' ? '/admin' : '/'));
   };
 
-  // Form states
-  const [signInEmail, setSignInEmail] = useState("");
-  const [signInPassword, setSignInPassword] = useState("");
-  const [signUpName, setSignUpName] = useState("");
-  const [signUpEmail, setSignUpEmail] = useState("");
-  const [signUpPassword, setSignUpPassword] = useState("");
-  const [error, setError] = useState("");
+  const [isSignIn, setIsSignIn] = useState(location.pathname !== '/register');
+
+  useEffect(() => {
+    setIsSignIn(location.pathname !== '/register');
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (isInviteRedirect) {
+      localStorage.setItem('pendingInviteRedirect', redirectPath);
+    }
+  }, [isInviteRedirect, redirectPath]);
+
+  const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
+  const [signUpName, setSignUpName] = useState('');
+  const [signUpEmail, setSignUpEmail] = useState('');
+  const [signUpPassword, setSignUpPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      const response = await api.post("/users/google-login", {
+      const response = await api.post('/users/google-login', {
         credential: credentialResponse.credential,
       });
       const { token, ...user } = response.data;
-
-      localStorage.setItem("token", token);
+      localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
-
-      showToast(`Welcome back, ${user.fullName}!`, "success");
-
-      if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      showToast('Chào mừng trở lại, ' + user.fullName + '!', 'success');
+      navigateAfterAuth(user);
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Google login failed.";
+      const msg = err.response?.data?.message || 'Đăng nhập Google thất bại.';
       setError(msg);
-      showToast(msg, "error");
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -72,30 +73,21 @@ const AuthPage = () => {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      const response = await api.post("/users/login", {
+      const response = await api.post('/users/login', {
         email: signInEmail,
         password: signInPassword,
       });
       const { token, ...user } = response.data;
-
-      localStorage.setItem("token", token);
+      localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
-
-      showToast("Login successful!", "success");
-
-      if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else {
-        navigate("/");
-      }
+      showToast('Đăng nhập thành công!', 'success');
+      navigateAfterAuth(user);
     } catch (err: any) {
-      const msg =
-        err.response?.data?.message ||
-        "Login failed. Please check your credentials.";
+      const msg = err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra thông tin đăng nhập.';
       setError(msg);
-      showToast(msg, "error");
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
@@ -104,57 +96,40 @@ const AuthPage = () => {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      await api.post("/users/register", {
+      await api.post('/users/register', {
         fullName: signUpName,
         email: signUpEmail,
         password: signUpPassword,
       });
       setIsSuccess(true);
-      showToast("Registration successful! Please check your email.", "success");
+      showToast('Đăng ký thành công! Vui lòng kiểm tra email của bạn.', 'success');
     } catch (err: any) {
-      const msg =
-        err.response?.data?.message || "Registration failed. Please try again.";
+      const msg = err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.';
       setError(msg);
-      showToast(msg, "error");
+      showToast(msg, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const springTransition = {
-    type: "spring" as const,
-    stiffness: 120,
-    damping: 20,
-  };
-
   if (isSuccess) {
     return (
-      <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 font-sans overflow-hidden">
-        <div className="w-full max-w-[480px] bg-white rounded-[2.5rem] p-10 shadow-2xl text-center border border-slate-100">
-          <div className="flex justify-center mb-10">
-            <div className="w-20 h-20 bg-emerald-500/20 rounded-full flex items-center justify-center border border-emerald-500/30">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500" />
-            </div>
+      <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-slate-50 font-sans overflow-y-auto">
+        <div className="w-full max-w-[400px] bg-white border border-slate-200 rounded-3xl shadow-xl p-6 sm:p-8 text-center">
+          <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <CheckCircle2 className="w-8 h-8 text-green-500" />
           </div>
-          <h1 className="text-4xl font-black text-slate-900 mb-6">
-            Verify your email
-          </h1>
-          <p className="text-slate-500 font-medium leading-relaxed mb-10">
-            We've sent a verification link to{" "}
-            <span className="text-slate-900 font-bold">{signUpEmail}</span>.
-            Please check your inbox and click the link to activate your account.
+          <h1 className="text-2xl font-bold text-slate-900 mb-2">Xác minh Email</h1>
+          <p className="text-slate-500 text-sm mb-6">
+            Chúng tôi đã gửi liên kết xác minh đến <strong className="text-primary">{signUpEmail}</strong>. Vui lòng kiểm tra hộp thư của bạn.
           </p>
           <button
-            onClick={() => {
-              setIsSuccess(false);
-              navigate("/login");
-            }}
-            className="inline-flex items-center justify-center gap-2 w-full bg-[#2563EB] text-white font-bold py-4 rounded-2xl hover:bg-[#1E40AF] shadow-xl shadow-[#2563EB]/20 transition-all active:scale-[0.98]"
+            onClick={() => { setIsSuccess(false); navigate(`/login${redirectQuery}`); }}
+            className="w-full py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-colors shadow-md shadow-primary/20"
           >
-            Go to Login
-            <ArrowRight className="w-5 h-5" />
+            Đến trang đăng nhập
           </button>
         </div>
       </div>
@@ -162,455 +137,197 @@ const AuthPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-4 md:p-6 font-sans select-none overflow-hidden global-no-scrollbar">
-      {/* Absolute Back Link */}
-      <Link
-        to="/"
-        className="fixed top-8 left-8 z-[200] flex items-center gap-2 text-slate-400 hover:text-[#2563EB] transition-all font-bold text-xs uppercase tracking-widest group"
-      >
-        <div className="p-2 bg-white rounded-xl shadow-sm border border-slate-100 group-hover:border-[#2563EB]/30 transition-all">
-          <ArrowLeft className="w-4 h-4" />
+    <div className="flex min-h-screen w-full font-sans bg-slate-50 selection:bg-primary/20 selection:text-primary lg:overflow-hidden">
+
+      {/* Left Section - Dark Blue Visual (Desktop Only) */}
+      <div className="hidden lg:flex lg:w-[55%] bg-[#0a101f] flex-col justify-between p-10 relative overflow-hidden min-h-screen">
+        {/* Background Image */}
+        <div className="absolute inset-0 z-0">
+          <img src="/a.png" alt="Signify Authentication" className="w-full h-full object-contain opacity-90" />
         </div>
-        Back to Home
-      </Link>
 
-      {/* Main Desktop Container */}
-      <div className="relative w-full max-w-[960px] h-[560px] bg-white rounded-[2.5rem] shadow-[0_35px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden hidden md:flex border border-slate-100/50">
-        {/* Sign Up Content (Right side when active) */}
-        <motion.div
-          animate={{
-            x: isSignIn ? "0%" : "100%",
-            opacity: isSignIn ? 0 : 1,
-            zIndex: isSignIn ? 0 : 20,
-          }}
-          transition={springTransition}
-          className="absolute top-0 left-0 w-1/2 h-full flex flex-col items-center justify-center bg-[#F3F4F6] px-8"
-        >
-          <div className="w-full max-w-[320px] flex flex-col justify-center">
-            <motion.div
-              initial={false}
-              animate={{ opacity: isSignIn ? 0 : 1, y: isSignIn ? 20 : 0 }}
-              transition={{ delay: 0.1 }}
-              className="w-full space-y-3.5"
-            >
-              <div className="text-center">
-                <h1 className="text-2xl font-extrabold text-slate-900 mb-0.5 tracking-tight">
-                  Sign Up
-                </h1>
-                <p className="text-slate-500 text-xs font-medium leading-relaxed">
-                  Create your account to start automating
-                </p>
-              </div>
+        {/* Background Gradients */}
+        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-primary/20 rounded-full blur-[120px] z-0" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[100px] z-0" />
 
-              {!isSignIn && error && (
-                <div className="bg-red-50 text-red-500 py-1.5 px-3 rounded-xl text-[11px] font-medium border border-red-100 text-center">
-                  {error}
-                </div>
-              )}
+        {/* Top: Logo */}
+        <div className="relative z-10">
+          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity w-fit">
+            <img src="/logo_removebg.png" alt="Signify Logo" className="h-10 brightness-0 invert" />
+          </Link>
+        </div>
 
-              <form onSubmit={handleSignUp} className="space-y-3">
-                <div className="space-y-0.5">
-                  <label className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 ml-1">
-                    FULL NAME
-                  </label>
-                  <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
-                    <input
-                      type="text"
-                      value={signUpName}
-                      onChange={(e) => setSignUpName(e.target.value)}
-                      placeholder="Jane Doe"
-                      className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10 transition-all shadow-sm"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-0.5">
-                  <label className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 ml-1">
-                    EMAIL ADDRESS
-                  </label>
-                  <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
-                    <input
-                      type="email"
-                      value={signUpEmail}
-                      onChange={(e) => setSignUpEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10 transition-all shadow-sm"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-0.5">
-                  <label className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 ml-1">
-                    PASSWORD
-                  </label>
-                  <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
-                    <input
-                      type="password"
-                      value={signUpPassword}
-                      onChange={(e) => setSignUpPassword(e.target.value)}
-                      placeholder="••••••"
-                      className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10 transition-all shadow-sm"
-                      required
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-[#2563EB] hover:bg-[#1D4ED8] active:bg-[#1E40AF] text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-[#2563EB]/25 hover:shadow-xl hover:shadow-[#2563EB]/35 active:scale-[0.98] mt-1 cursor-pointer"
-                >
-                  {loading ? "Processing..." : "CREATE ACCOUNT"}
-                </button>
-              </form>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400">
-                  <span className="bg-[#F3F4F6] px-3">Direct Auth</span>
-                </div>
-              </div>
-
-              {/* CHỈNH SỬA: Bọc nút Google Desktop bằng wrapper div bo góc 2xl để đồng bộ hoàn toàn */}
-              <div className="w-full max-w-[320px] mx-auto rounded-2xl overflow-hidden shadow-sm border border-slate-200/65 flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError("Google Login Failed")}
-                  theme="outline"
-                  size="large"
-                  shape="rectangular"
-                  width="320"
-                />
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Sign In Content (Left side when active) */}
-        <motion.div
-          animate={{
-            x: isSignIn ? "0%" : "-100%",
-            opacity: isSignIn ? 1 : 0,
-            zIndex: isSignIn ? 20 : 0,
-          }}
-          transition={springTransition}
-          className="absolute top-0 left-0 w-1/2 h-full flex flex-col items-center justify-center bg-[#F3F4F6] px-8"
-        >
-          <div className="w-full max-w-[320px] flex flex-col justify-center">
-            <motion.div
-              initial={false}
-              animate={{ opacity: isSignIn ? 1 : 0, y: isSignIn ? 0 : 20 }}
-              transition={{ delay: 0.1 }}
-              className="w-full space-y-3.5"
-            >
-              <div className="text-center">
-                <h1 className="text-2xl font-extrabold text-slate-900 mb-0.5 tracking-tight">
-                  Sign In
-                </h1>
-                <p className="text-slate-500 text-xs font-medium leading-relaxed">
-                  Welcome back to the Signify ecosystem
-                </p>
-              </div>
-
-              {isSignIn && error && (
-                <div className="bg-red-50 text-red-500 py-1.5 px-3 rounded-xl text-[11px] font-medium border border-red-100 text-center">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSignIn} className="space-y-3">
-                <div className="space-y-0.5">
-                  <label className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400 ml-1">
-                    EMAIL ADDRESS
-                  </label>
-                  <div className="relative group">
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
-                    <input
-                      type="email"
-                      value={signInEmail}
-                      onChange={(e) => setSignInEmail(e.target.value)}
-                      placeholder="you@example.com"
-                      className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10 transition-all shadow-sm"
-                      required
-                    />
-                  </div>
-                </div>
-                <div className="space-y-0.5">
-                  <div className="flex justify-between items-center ml-1">
-                    <label className="text-[9px] font-bold uppercase tracking-[0.25em] text-slate-400">
-                      PASSWORD
-                    </label>
-                    <Link
-                      to="/forgot-password"
-                      className="text-[10px] font-bold text-[#2563EB] hover:underline uppercase tracking-wider"
-                    >
-                      Forgot?
-                    </Link>
-                  </div>
-                  <div className="relative group">
-                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-[#2563EB] transition-colors" />
-                    <input
-                      type="password"
-                      value={signInPassword}
-                      onChange={(e) => setSignInPassword(e.target.value)}
-                      placeholder="••••••"
-                      className="w-full bg-white border border-slate-200 rounded-2xl py-2.5 pl-10 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:border-[#2563EB] focus:ring-4 focus:ring-[#2563EB]/10 transition-all shadow-sm"
-                      required
-                    />
-                  </div>
-                </div>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-[#2563EB] hover:bg-[#1D4ED8] active:bg-[#1E40AF] text-white rounded-2xl font-bold text-xs uppercase tracking-widest transition-all shadow-lg shadow-[#2563EB]/25 hover:shadow-xl hover:shadow-[#2563EB]/35 active:scale-[0.98] mt-1 cursor-pointer"
-                >
-                  {loading ? "Processing..." : "SIGN IN"}
-                </button>
-              </form>
-
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
-                </div>
-                <div className="relative flex justify-center text-[10px] uppercase font-bold tracking-[0.25em] text-slate-400">
-                  <span className="bg-[#F3F4F6] px-3">Direct Auth</span>
-                </div>
-              </div>
-
-              {/* CHỈNH SỬA: Bọc nút Google Desktop bằng wrapper div bo góc 2xl để đồng bộ hoàn toàn */}
-              <div className="w-full max-w-[320px] mx-auto rounded-2xl overflow-hidden shadow-sm border border-slate-200/65 flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError("Google Login Failed")}
-                  theme="outline"
-                  size="large"
-                  shape="rectangular"
-                  width="320"
-                />
-              </div>
-            </motion.div>
-          </div>
-        </motion.div>
-
-        {/* Sliding Overlay Container */}
-        <motion.div
-          animate={{
-            x: isSignIn ? "100%" : "0%",
-            borderRadius: isSignIn ? "0px 40px 40px 0px" : "40px 0px 0px 40px",
-          }}
-          transition={springTransition}
-          className="absolute top-0 left-0 w-1/2 h-full z-[100] overflow-hidden"
-        >
-          <div className="relative h-full w-full bg-gradient-to-br from-[#0F172A] via-[#1E3A8A] to-[#6D28D9] flex items-center justify-center overflow-hidden">
-            <div className="absolute top-[-15%] right-[-10%] w-[450px] h-[450px] bg-white/5 rounded-full blur-[120px] animate-pulse animate-duration-5000" />
-            <div className="absolute bottom-[-15%] left-[-10%] w-[450px] h-[450px] bg-indigo-500/10 rounded-full blur-[120px]" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#6366F1]/5 rounded-full blur-[100px]" />
-
-            <div className="relative z-10 w-full h-full flex flex-col items-center justify-center px-12">
-              <AnimatePresence mode="wait">
-                {isSignIn ? (
-                  <motion.div
-                    key="to-signup"
-                    initial={{ opacity: 0, scale: 0.9, x: 20 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 1.1, x: -20 }}
-                    className="flex flex-col items-center w-full text-center"
-                  >
-                    <div className="w-16 h-16 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] group overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <CheckCircle2 className="w-8 h-8 text-white" />
-                    </div>
-                    <h2 className="text-xs font-bold text-indigo-200/85 uppercase tracking-[0.4em] mb-4">
-                      START YOUR JOURNEY
-                    </h2>
-                    <h3 className="text-4xl font-extrabold text-white mb-4 leading-tight tracking-tight">
-                      New platform?
-                    </h3>
-                    <p className="text-white/80 mb-8 text-sm font-medium leading-relaxed max-w-xs mx-auto">
-                      Discover the future of automation with our next-gen AI
-                      ecosystem.
-                    </p>
-
-                    <button
-                      onClick={toggleAuth}
-                      className="w-full max-w-[320px] py-4 bg-white hover:bg-slate-50 text-[#2563EB] rounded-2xl font-bold text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_15px_30px_rgba(0,0,0,0.2)] border border-slate-100 cursor-pointer"
-                    >
-                      REGISTER NOW
-                    </button>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="to-signin"
-                    initial={{ opacity: 0, scale: 0.9, x: -20 }}
-                    animate={{ opacity: 1, scale: 1, x: 0 }}
-                    exit={{ opacity: 0, scale: 1.1, x: 20 }}
-                    className="flex flex-col items-center w-full text-center"
-                  >
-                    <div className="w-16 h-16 bg-white/10 border border-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)] group overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                      <Lock className="w-8 h-8 text-white" />
-                    </div>
-                    <h2 className="text-xs font-bold text-indigo-200/85 uppercase tracking-[0.4em] mb-4">
-                      GLAD TO SEE YOU
-                    </h2>
-                    <h3 className="text-4xl font-extrabold text-white mb-4 leading-tight tracking-tight">
-                      Back again?
-                    </h3>
-                    <p className="text-white/80 mb-8 text-sm font-medium leading-relaxed max-w-xs mx-auto">
-                      Log in to access your dashboard and pick up right where
-                      you left off.
-                    </p>
-
-                    <button
-                      onClick={toggleAuth}
-                      className="w-full max-w-[320px] py-4 bg-white hover:bg-slate-50 text-[#2563EB] rounded-2xl font-bold text-xs uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-[0_15px_30px_rgba(0,0,0,0.2)] border border-slate-100 cursor-pointer"
-                    >
-                      LOGIN NOW
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </div>
-        </motion.div>
       </div>
 
-      {/* Mobile Version (Simplified Smooth Slide) */}
-      <div className="md:hidden w-full max-w-sm">
-        <div className="bg-white rounded-[3rem] shadow-2xl p-8 border border-slate-100 overflow-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={isSignIn ? "signin" : "signup"}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              <div className="flex flex-col items-center mb-8">
-                <div className="w-14 h-14 bg-[#2563EB] rounded-[1.25rem] flex items-center justify-center mb-4 shadow-xl shadow-[#2563EB]/20">
-                  {isSignIn ? (
-                    <Lock className="text-white w-6 h-6" />
-                  ) : (
-                    <User className="text-white w-6 h-6" />
-                  )}
-                </div>
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight uppercase">
-                  SIGNIFY
-                </h1>
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">
-                  {isSignIn ? "Member Authentication" : "Account Registration"}
-                </p>
-              </div>
+      {/* Right Section - Form Container */}
+      <div className="w-full lg:w-[45%] flex flex-col min-h-screen relative">
 
-              {error && (
-                <div className="bg-red-50 text-red-500 p-3 rounded-xl mb-4 text-xs font-medium border border-red-100 text-center">
-                  {error}
-                </div>
-              )}
+        {/* Top Right Contact Support (Desktop) */}
+        <div className="hidden lg:flex absolute top-6 right-8">
+          <Link to="#" className="text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors">
+            Hỗ trợ
+          </Link>
+        </div>
 
-              <form
-                onSubmit={isSignIn ? handleSignIn : handleSignUp}
-                className="space-y-4"
+        {/* Mobile Header */}
+        <div className="lg:hidden p-4 flex justify-between items-center bg-white border-b border-slate-100 shrink-0">
+          <Link to="/" className="flex items-center gap-2">
+            <img src="/logo_removebg.png" alt="Signify Logo" className="h-5" />
+            <span className="font-bold text-base text-slate-900">Signify</span>
+          </Link>
+          <Link to="#" className="text-xs font-semibold text-slate-500">
+            Hỗ trợ
+          </Link>
+        </div>
+
+        {/* Center: The White Card */}
+        <div className="flex-1 flex items-center justify-center p-4 sm:p-8 min-h-0 overflow-y-auto">
+          <div className="w-full max-w-[550px] bg-white rounded-3xl shadow-[0_4px_24px_rgb(0,0,0,0.03)] border border-slate-100 p-6 sm:px-10 sm:py-9">
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={isSignIn ? 'login' : 'register'}
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                transition={{ duration: 0.15 }}
               >
-                {!isSignIn && (
-                  <div className="space-y-1">
-                    <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 ml-1">
-                      FULL NAME
-                    </label>
-                    <input
-                      type="text"
-                      value={signUpName}
-                      onChange={(e) => setSignUpName(e.target.value)}
-                      placeholder="Jane Doe"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
-                      required
-                    />
+                <div className="text-center mb-5">
+                  <h2 className="text-2xl font-extrabold text-slate-900 mb-1">
+                    {isSignIn ? "Đăng nhập vào Signify" : "Tạo tài khoản"}
+                  </h2>
+                  <p className="text-slate-500 text-xs">
+                    {isSignIn ? "Chào mừng trở lại! Vui lòng nhập thông tin của bạn." : "Nhập thông tin bên dưới để bắt đầu."}
+                  </p>
+                </div>
+
+                {isInviteRedirect && (
+                  <div className="mb-4 p-3 bg-primary/5 text-primary rounded-lg text-xs border border-primary/15 flex items-start gap-2">
+                    <Shield className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">Bạn đang mở lời mời doanh nghiệp. Hãy đăng nhập bằng email được mời, hoặc đăng ký nếu chưa có tài khoản Signify.</span>
                   </div>
                 )}
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 ml-1">
-                    EMAIL ADDRESS
-                  </label>
-                  <input
-                    type="email"
-                    value={isSignIn ? signInEmail : signUpEmail}
-                    onChange={(e) =>
-                      isSignIn
-                        ? setSignInEmail(e.target.value)
-                        : setSignUpEmail(e.target.value)
-                    }
-                    placeholder="you@example.com"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
-                    required
+
+                {error && (
+                  <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-xs border border-red-100 flex items-start gap-2">
+                    <span className="material-symbols-outlined text-red-500 text-base leading-none">error</span>
+                    <span className="leading-tight">{error}</span>
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError('Đăng nhập Google thất bại')}
+                    theme="outline"
+                    size="large"
+                    text={isSignIn ? "signin_with" : "signup_with"}
+                    shape="rectangular"
+                    width="100%"
+                    logo_alignment="center"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] font-bold uppercase tracking-wider text-slate-400 ml-1">
-                    PASSWORD
-                  </label>
-                  <input
-                    type="password"
-                    value={isSignIn ? signInPassword : signUpPassword}
-                    onChange={(e) =>
-                      isSignIn
-                        ? setSignInPassword(e.target.value)
-                        : setSignUpPassword(e.target.value)
-                    }
-                    placeholder="••••••"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3.5 px-4 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 focus:border-[#2563EB] transition-all"
-                    required
-                  />
-                </div>
-                <button
-                  disabled={loading}
-                  className="w-full bg-[#2563EB] text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest shadow-lg shadow-[#2563EB]/25 mt-4 hover:bg-[#1D4ED8] active:scale-[0.98] transition-all"
-                >
-                  {loading
-                    ? "Processing..."
-                    : isSignIn
-                      ? "SIGN IN"
-                      : "CREATE ACCOUNT"}
-                </button>
-              </form>
 
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-slate-200"></div>
+                <div className="relative mb-4">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-slate-200"></div>
+                  </div>
+                  <div className="relative flex justify-center text-xs">
+                    <span className="px-3 bg-white text-slate-400 font-medium">or</span>
+                  </div>
                 </div>
-                <div className="relative flex justify-center text-[9px] uppercase font-bold tracking-[0.2em] text-slate-400">
-                  <span className="bg-white px-3">Direct Auth</span>
-                </div>
-              </div>
 
-              {/* CHỈNH SỬA: Thay thế shape="pill" cũ bằng wrapper div và ép nút Google Mobile dùng shape="rectangular" để bo tròn chuẩn 2xl */}
-              <div className="w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200/65 flex justify-center">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError("Google Login Failed")}
-                  theme="outline"
-                  size="large"
-                  shape="rectangular"
-                  width="320"
-                />
-              </div>
+                <form onSubmit={isSignIn ? handleSignIn : handleSignUp} className="space-y-3.5">
+                  {!isSignIn && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Họ và tên</label>
+                      <input
+                        type="text"
+                        value={signUpName}
+                        onChange={(e) => setSignUpName(e.target.value)}
+                        placeholder="Nguyễn Văn A"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                  )}
 
-              <div className="mt-8 text-center">
-                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-2">
-                  {isSignIn ? "Don't have an account?" : "Already a member?"}
-                </p>
-                <button
-                  onClick={toggleAuth}
-                  className="text-[#2563EB] font-bold text-xs uppercase tracking-widest hover:opacity-80 transition-opacity"
-                >
-                  {isSignIn ? "Switch to Sign Up" : "Switch to Sign In"}
-                </button>
-              </div>
-            </motion.div>
-          </AnimatePresence>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ email</label>
+                    <input
+                      type="email"
+                      value={isSignIn ? signInEmail : signUpEmail}
+                      onChange={(e) => isSignIn ? setSignInEmail(e.target.value) : setSignUpEmail(e.target.value)}
+                      placeholder="email@example.com"
+                      required
+                      className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Mật khẩu</label>
+                    <div className="relative">
+                      <input
+                        type={showPassword ? "text" : "password"}
+                        value={isSignIn ? signInPassword : signUpPassword}
+                        onChange={(e) => isSignIn ? setSignInPassword(e.target.value) : setSignUpPassword(e.target.value)}
+                        placeholder="Nhập mật khẩu"
+                        required
+                        className="w-full bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isSignIn && (
+                    <div className="flex items-center justify-between pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <div className="relative flex items-center justify-center w-3.5 h-3.5">
+                          <input
+                            type="checkbox"
+                            checked={rememberMe}
+                            onChange={(e) => setRememberMe(e.target.checked)}
+                            className="peer appearance-none w-3.5 h-3.5 border border-slate-300 rounded-[4px] cursor-pointer checked:bg-primary checked:border-primary transition-colors focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                          />
+                          <svg className="absolute w-2.5 h-2.5 text-white opacity-0 peer-checked:opacity-100 pointer-events-none" viewBox="0 0 14 10" fill="none">
+                            <path d="M1 5L4.5 8.5L13 1" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        </div>
+                        <span className="text-xs font-semibold text-slate-600 group-hover:text-slate-900 transition-colors">Ghi nhớ đăng nhập</span>
+                      </label>
+                      <Link to="/forgot-password" className="text-xs font-bold text-primary hover:text-primary-container transition-colors">
+                        Quên mật khẩu?
+                      </Link>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full mt-2 py-2.5 bg-primary text-white text-sm font-bold rounded-xl hover:bg-primary/90 transition-all shadow-md shadow-primary/20 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none"
+                  >
+                    {loading ? 'Đang xử lý...' : (isSignIn ? 'Đăng nhập' : 'Tạo tài khoản')}
+                  </button>
+                </form>
+              </motion.div>
+            </AnimatePresence>
+
+            <div className="mt-5 text-center text-xs font-semibold text-slate-500">
+              {isSignIn ? "Chưa có tài khoản? " : "Đã có tài khoản? "}
+              <button
+                onClick={() => navigate(`${isSignIn ? '/register' : '/login'}${redirectQuery}`)}
+                className="font-bold text-primary hover:text-primary-container transition-colors"
+              >
+                {isSignIn ? 'Đăng ký' : 'Đăng nhập'}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

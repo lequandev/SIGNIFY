@@ -1,59 +1,124 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { Users, LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, Menu, User as UserIcon, X } from 'lucide-react';
 import { setLogout } from '../store/authSlice';
 
 const Header: React.FC = () => {
   const { isAuthenticated, user } = useSelector((state: any) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+  useEffect(() => {
+    setIsMenuOpen(false);
+  }, [location.pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     dispatch(setLogout());
+    setIsMenuOpen(false);
     navigate('/login');
   };
 
+  const navItems = [
+    { to: '/', label: 'Tính năng' },
+    { to: '/packages', label: 'Dịch vụ' },
+    { to: '/about', label: 'Về chúng tôi' },
+    { to: '/contact', label: 'Liên hệ' },
+  ];
+
+  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `text-sm font-medium transition-colors duration-200 ${isActive ? 'text-primary font-semibold' : 'text-on-surface-variant hover:text-primary'}`;
+
+  const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
+    `rounded-2xl px-4 py-3 text-sm font-bold transition-all ${isActive ? 'bg-primary/10 text-primary' : 'text-on-surface-variant hover:bg-surface-container hover:text-primary'}`;
+
   return (
-    <nav className="flex items-center justify-between py-6 max-w-6xl mx-auto px-8 md:px-16 w-full">
-      <div className="flex items-center gap-2">
-        <Link to="/" className="flex items-center gap-2 group">
-          <img 
-            src="/logo_removebg.png" 
-            alt="Signify Logo" 
-            className="h-10 object-contain group-hover:scale-105 transition-transform"
-          />
+    <header className="fixed top-0 left-0 right-0 z-50 h-[72px] bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant flex items-center justify-center font-sans">
+      <div className="w-full max-w-[1400px] px-4 sm:px-6 lg:px-12 flex items-center justify-between gap-3">
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-4 shrink-0 hover:opacity-85 transition-opacity">
+          <img src="/logo_removebg.png" alt="Signify Logo" className="h-9 sm:h-10 object-contain hover:scale-105 transition-transform" />
         </Link>
-      </div>
-      <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-        <Link to="/" className="hover:text-[#2563EB] transition-colors">Features</Link>
-        <Link to="/packages" className="hover:text-[#2563EB] transition-colors">Service</Link>
-        
-        {isAuthenticated ? (
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 rounded-full border border-slate-200">
-              <UserIcon className="w-4 h-4 text-[#2563EB]" />
-              <span className="text-sm font-bold text-slate-700">{user?.fullName || 'User'}</span>
+
+        {/* Centered Navigation */}
+        <nav className="hidden lg:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
+          {navItems.map((item) => (
+            <NavLink key={item.to} to={item.to} className={navLinkClass}>{item.label}</NavLink>
+          ))}
+        </nav>
+
+        {/* Right side actions */}
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          {isAuthenticated ? (
+            <div className="flex items-center gap-2 sm:gap-3">
+              <Link to="/profile" className="group flex items-center gap-2 rounded-full border border-primary-container/20 bg-primary-container/10 p-1.5 transition-all hover:bg-primary-container/20 sm:pr-2">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center text-white font-bold shrink-0 shadow-sm overflow-hidden">
+                  {user?.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                  ) : user?.fullName ? (
+                    user.fullName.charAt(0).toUpperCase()
+                  ) : (
+                    <UserIcon className="w-4 h-4" />
+                  )}
+                </div>
+              </Link>
+              <button onClick={handleLogout} className="hidden sm:flex items-center gap-1.5 text-sm font-bold text-on-surface/60 hover:text-error transition-colors px-2 py-1.5 rounded-lg">
+                <LogOut className="w-4 h-4" />
+                <span className="hidden md:inline">Đăng xuất</span>
+              </button>
             </div>
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-red-500 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Logout
-            </button>
-          </div>
-        ) : (
-          <>
-            <Link to="/login" className="hover:text-[#2563EB] transition-colors">Login</Link>
-            <Link to="/register" className="bg-[#2563EB] text-white px-5 py-2 rounded-full hover:bg-[#4F46E5] transition-all shadow-md shadow-[#2563EB]/20">
-              Get Started
-            </Link>
-          </>
-        )}
+          ) : (
+            <div className="hidden sm:flex items-center gap-2 sm:gap-4">
+              <Link to="/login" className="text-sm text-on-surface-variant font-semibold hover:text-primary px-4 py-2 rounded-lg transition-all duration-200 hover:bg-surface-container-low hidden md:inline-block">Đăng nhập</Link>
+              <Link to="/register" className="text-sm bg-primary text-on-primary px-4 lg:px-6 py-2.5 h-[42px] rounded-xl font-bold shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all duration-300 transform hover:scale-[1.02] active:scale-95 flex items-center justify-center whitespace-nowrap">Bắt đầu miễn phí</Link>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsMenuOpen((open) => !open)}
+            className="lg:hidden w-10 h-10 rounded-xl border border-outline-variant/60 bg-surface-container-lowest text-on-surface flex items-center justify-center shadow-sm hover:text-primary hover:border-primary/40 transition-colors"
+            aria-expanded={isMenuOpen}
+            aria-controls="mobile-navigation"
+            aria-label={isMenuOpen ? 'Đóng menu điều hướng' : 'Mở menu điều hướng'}
+          >
+            {isMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
-    </nav>
+
+      {isMenuOpen && (
+        <div className="lg:hidden absolute inset-x-0 top-[72px] border-b border-outline-variant bg-surface-container-lowest/95 backdrop-blur-xl shadow-xl" id="mobile-navigation">
+          <div className="mx-auto max-w-[1400px] px-4 sm:px-6 py-4">
+            <nav className="grid gap-2">
+              {navItems.map((item) => (
+                <NavLink key={item.to} to={item.to} className={mobileNavLinkClass}>{item.label}</NavLink>
+              ))}
+            </nav>
+
+            <div className="mt-4 border-t border-outline-variant/50 pt-4">
+              {isAuthenticated ? (
+                <div className="grid gap-2">
+                  <NavLink to="/profile" className={mobileNavLinkClass}>Hồ sơ cá nhân</NavLink>
+                  <button onClick={handleLogout} className="rounded-2xl px-4 py-3 text-left text-sm font-bold text-error hover:bg-error/10 transition-all flex items-center gap-2">
+                    <LogOut className="w-4 h-4" />
+                    Đăng xuất
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Link to="/login" className="rounded-xl border border-outline-variant/60 px-4 py-3 text-center text-sm font-bold text-on-surface-variant hover:text-primary hover:border-primary/40 transition-colors">Đăng nhập</Link>
+                  <Link to="/register" className="rounded-xl bg-primary px-4 py-3 text-center text-sm font-bold text-on-primary shadow-lg shadow-primary/20">Bắt đầu miễn phí</Link>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </header>
   );
 };
 

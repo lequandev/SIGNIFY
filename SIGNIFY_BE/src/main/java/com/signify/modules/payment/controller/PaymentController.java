@@ -20,13 +20,19 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     @PostMapping("/create-link")
-    public ResponseEntity<PaymentResponse> createPaymentLink(@RequestBody CreatePaymentRequest request) {
-        // Assume user ID is stored as the Principal name
+    public ResponseEntity<?> createPaymentLink(@RequestBody CreatePaymentRequest request) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String userId = (authentication != null && authentication.getName() != null) ? authentication.getName() : "anonymous";
-        
-        PaymentResponse response = paymentService.createPaymentLink(request, userId);
-        return ResponseEntity.ok(response);
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+
+        try {
+            String userId = authentication.getName();
+            PaymentResponse response = paymentService.createPaymentLink(request, userId);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @PostMapping("/webhook")
@@ -37,6 +43,13 @@ public class PaymentController {
 
     @GetMapping("/check-status/{orderCode}")
     public ResponseEntity<Map<String, Object>> checkStatus(@PathVariable Long orderCode) {
-        return ResponseEntity.ok(paymentService.checkStatus(orderCode));
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String userId = (authentication != null && authentication.getName() != null) ? authentication.getName() : null;
+
+        if (userId == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "Unauthorized"));
+        }
+
+        return ResponseEntity.ok(paymentService.checkStatus(orderCode, userId));
     }
 }

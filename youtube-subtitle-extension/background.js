@@ -224,31 +224,149 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open
   }
 
+  if (message.action === "usage_session_start") {
+    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
+      const port = data.backendPort || activePort;
+      const token = data.signifyAuthToken;
+
+      if (!token) {
+        sendResponse({
+          success: false,
+          quotaExceeded: false,
+          authRequired: true,
+          error: "Vui lòng đăng nhập Signify để sử dụng extension."
+        });
+        return;
+      }
+
+      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/start`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(message.requestData || {})
+      })
+        .then(async response => {
+          const data = await response.json().catch(() => ({}));
+          if (response.status === 403 && data.code === 'FREE_DAILY_LIMIT_REACHED') {
+            sendResponse({ success: false, quotaExceeded: true, data });
+            return;
+          }
+          if (!response.ok) {
+            sendResponse({ success: false, error: data.message || `HTTP error! Status: ${response.status}` });
+            return;
+          }
+          sendResponse({ success: true, data });
+        })
+        .catch(err => {
+          console.error("Usage session start failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true;
+  }
+
+  if (message.action === "usage_session_heartbeat") {
+    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
+      const port = data.backendPort || activePort;
+      const token = data.signifyAuthToken;
+
+      if (!token) {
+        sendResponse({ success: false, authRequired: true, error: "Vui lòng đăng nhập Signify để sử dụng extension." });
+        return;
+      }
+
+      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/heartbeat`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(async response => {
+          const data = await response.json().catch(() => ({}));
+          if (response.status === 403 && data.code === 'FREE_DAILY_LIMIT_REACHED') {
+            sendResponse({ success: false, quotaExceeded: true, data });
+            return;
+          }
+          if (!response.ok) {
+            sendResponse({ success: false, error: data.message || `HTTP error! Status: ${response.status}` });
+            return;
+          }
+          sendResponse({ success: true, data });
+        })
+        .catch(err => {
+          console.error("Usage session heartbeat failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true;
+  }
+
+  if (message.action === "usage_session_end") {
+    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
+      const port = data.backendPort || activePort;
+      const token = data.signifyAuthToken;
+
+      if (!token || !message.sessionId) {
+        sendResponse({ success: false, error: "Missing token or sessionId" });
+        return;
+      }
+
+      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/end`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(async response => {
+          const data = await response.json().catch(() => ({}));
+          sendResponse({ success: response.ok, data, error: response.ok ? null : data.message });
+        })
+        .catch(err => {
+          console.error("Usage session end failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true;
+  }
+
   if (message.action === "fetch_dictionary_lookup") {
     console.log("Background received dictionary lookup request:", message.requestData);
 
-    // Get port from local storage or memory
-    chrome.storage.local.get("backendPort", (data) => {
+    // Get port and auth token from local storage or memory
+    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
       const port = data.backendPort || activePort;
+      const token = data.signifyAuthToken;
       console.log(`Using backend port ${port} for lookup`);
+
+      if (!token) {
+        sendResponse({
+          success: false,
+          authRequired: true,
+          error: "Vui lòng đăng nhập Signify để sử dụng extension."
+        });
+        return;
+      }
 
       fetch(`http://127.0.0.1:${port}/api/ai/dictionary-lookup`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify(message.requestData)
       })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
+        .then(async response => {
+          const data = await response.json().catch(() => ({}));
+          if (response.status === 403 && data.code === 'FREE_DAILY_LIMIT_REACHED') {
+            sendResponse({ success: false, quotaExceeded: true, data });
+            return;
           }
-          return response.json();
-        })
-        .then((data) => {
-          // Trả thẳng dữ liệu cho content.js (KHÔNG convert base64 tuần tự nữa — trước đây
-          // fetch từng mp4 gây trễ lớn, nhất là khi file 404). content.js sẽ tự convert
-          // base64 theo nhu cầu (lazy) chỉ cho clip sắp phát, xem convertAnimationsLazily.
+          if (response.status === 401) {
+            sendResponse({ success: false, authRequired: true, data, error: data.message || 'Vui lòng đăng nhập Signify để sử dụng extension.' });
+            return;
+          }
+          if (!response.ok) {
+            sendResponse({ success: false, error: data.message || `HTTP error! Status: ${response.status}` });
+            return;
+          }
           sendResponse({ success: true, data: data });
         })
         .catch(err => {

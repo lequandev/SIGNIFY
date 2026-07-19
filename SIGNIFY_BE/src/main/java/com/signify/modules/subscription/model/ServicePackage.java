@@ -35,6 +35,12 @@ public class ServicePackage {
 
     Integer aiLimitPerDay;
 
+    Integer dailyUsageMinutes;
+
+    Integer maxAccounts;
+
+    Boolean fullFeatures;
+
     String buttonText;
 
     Boolean isRecommended;

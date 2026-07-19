@@ -1,5 +1,6 @@
 package com.signify.modules.admin.controller;
 
+import com.signify.modules.admin.dto.response.AdminSubscriptionResponse;
 import com.signify.modules.admin.service.AdminService;
 import com.signify.modules.user.model.User;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,11 @@ public class AdminController {
     @GetMapping("/users")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(adminService.getAllUsers());
+    }
+
+    @GetMapping("/subscriptions")
+    public ResponseEntity<List<AdminSubscriptionResponse>> getSubscriptions() {
+        return ResponseEntity.ok(adminService.getSubscriptions());
     }
 
     @PutMapping("/users/{id}")

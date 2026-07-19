@@ -203,6 +203,7 @@
 
   // Video "đứng yên" phát khi rảnh hoặc khi một từ không có clip riêng.
   const IDLE_VIDEO_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload/dung-im.mp4";
+  const FREE_DAILY_LIMIT_MESSAGE = "Bạn đã dùng hết 20 phút miễn phí hôm nay. Đăng ký gói để tiếp tục xem phụ đề ký hiệu.";
 
   let overlayContainer = null;
   let overlayVisible = true;
@@ -214,6 +215,10 @@
   let pendingCaption = "";
   let subtitleDebounceTimeout = null;
   let animationTimeout = null;
+  let currentSignifyUser = null;
+  let usageSessionId = null;
+  let usageHeartbeatTimer = null;
+  let quotaBlocked = false;
 
   // Timeline Synchronization Engine State
   let activeVideoId = "";
@@ -227,6 +232,218 @@
     return urlParams.get('v');
   }
 
+  function openSignifyLogin() {
+    window.open('http://localhost:5173/login', '_blank', 'noopener,noreferrer');
+  }
+
+  function renderSignifyUserInfo() {
+    if (!chrome.storage || !chrome.storage.local) return;
+
+    chrome.storage.local.get(['signifyUser'], (data) => {
+      const userNameEl = document.getElementById('signify-user-name');
+      const userAvatarEl = document.getElementById('signify-user-avatar');
+      const loginBtn = document.getElementById('signify-login-btn');
+
+      if (data.signifyUser) {
+        try {
+          const user = JSON.parse(data.signifyUser);
+          currentSignifyUser = user;
+          const displayName = user.fullName || user.email || 'Signify User';
+          const avatarUrl = user.avatarUrl || user.avatar || '';
+
+          if (userNameEl) userNameEl.textContent = displayName;
+          if (loginBtn) loginBtn.style.display = 'none';
+          if (userAvatarEl) {
+            userAvatarEl.textContent = avatarUrl ? '' : (displayName.charAt(0) || 'S').toUpperCase();
+            userAvatarEl.style.backgroundImage = avatarUrl ? `url(${avatarUrl})` : '';
+            userAvatarEl.style.backgroundSize = 'cover';
+            userAvatarEl.style.backgroundPosition = 'center';
+          }
+        } catch (e) {
+          currentSignifyUser = null;
+          if (userNameEl) userNameEl.textContent = 'Chưa đăng nhập';
+          if (userAvatarEl) {
+            userAvatarEl.textContent = '?';
+            userAvatarEl.style.backgroundImage = '';
+          }
+          if (loginBtn) loginBtn.style.display = 'inline-flex';
+        }
+      } else {
+        currentSignifyUser = null;
+        if (userNameEl) userNameEl.textContent = 'Chưa đăng nhập';
+        if (userAvatarEl) {
+          userAvatarEl.textContent = '?';
+          userAvatarEl.style.backgroundImage = '';
+        }
+        if (loginBtn) loginBtn.style.display = 'inline-flex';
+      }
+    });
+  }
+
+  if (chrome.storage && chrome.storage.onChanged) {
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName === 'local' && changes.signifyUser) {
+        renderSignifyUserInfo();
+      }
+    });
+  }
+
+  function showSignifyLimitModal(message, authRequired = false) {
+    let modal = document.getElementById('signify-limit-modal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'signify-limit-modal';
+      modal.className = 'signify-limit-modal';
+      document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+      <div class="signify-limit-card">
+        <div class="signify-limit-icon">${authRequired ? '🔐' : '⏱️'}</div>
+        <div class="signify-limit-title">${authRequired ? 'Cần đăng nhập Signify' : 'Đã hết 20 phút hôm nay'}</div>
+        <div class="signify-limit-message">${message}</div>
+        <div class="signify-limit-actions">
+          ${authRequired ? '<button class="signify-limit-primary" id="signify-modal-login-btn">Đăng nhập</button>' : '<button class="signify-limit-primary" id="signify-modal-upgrade-btn">Đăng ký gói</button>'}
+          <button class="signify-limit-secondary" id="signify-modal-close-btn">Đóng</button>
+        </div>
+      </div>
+    `;
+
+    modal.style.display = 'flex';
+    const loginBtn = document.getElementById('signify-modal-login-btn');
+    const upgradeBtn = document.getElementById('signify-modal-upgrade-btn');
+    const closeBtn = document.getElementById('signify-modal-close-btn');
+    if (loginBtn) loginBtn.addEventListener('click', openSignifyLogin);
+    if (upgradeBtn) upgradeBtn.addEventListener('click', () => window.open('http://localhost:5173/packages', '_blank', 'noopener,noreferrer'));
+    if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
+  }
+
+  function showFreeDailyLimitState(message = FREE_DAILY_LIMIT_MESSAGE) {
+    quotaBlocked = true;
+    animationQueue = [];
+    clearTimeout(animationTimeout);
+
+    const ytVideo = document.querySelector('video.html5-main-video');
+    if (ytVideo) ytVideo.removeEventListener('timeupdate', handleTimelineUpdate);
+    isSyncActive = false;
+    lastActiveSegment = null;
+
+    if (observer) {
+      observer.disconnect();
+      observer = null;
+    }
+
+    const videoPlayer = document.getElementById('signify-video-player');
+    if (videoPlayer) {
+      videoPlayer.pause();
+      videoPlayer.removeAttribute('src');
+      videoPlayer.removeAttribute('data-idle');
+      videoPlayer.load();
+      videoPlayer.style.display = 'none';
+    }
+
+    const fallbackCard = document.getElementById('signify-fallback-card');
+    if (fallbackCard) {
+      fallbackCard.style.display = 'flex';
+      fallbackCard.innerHTML = `
+        <div class="signify-limit-inline-icon">⏱️</div>
+        <div class="signify-limit-inline-title">Đã dùng hết 20 phút hôm nay</div>
+        <div class="signify-limit-inline-message">Đăng ký gói để tiếp tục xem phụ đề ký hiệu.</div>
+        <button class="signify-limit-inline-button" id="signify-inline-upgrade-btn" type="button">Đăng ký gói</button>
+      `;
+
+      const inlineUpgradeBtn = document.getElementById('signify-inline-upgrade-btn');
+      if (inlineUpgradeBtn) {
+        inlineUpgradeBtn.addEventListener('click', () => window.open('http://localhost:5173/packages', '_blank', 'noopener,noreferrer'));
+      }
+    }
+
+    const captionText = document.getElementById('signify-caption-text');
+    if (captionText) captionText.textContent = message;
+
+    setHideNativeCaptions(false);
+    showSignifyLimitModal(message);
+  }
+
+  function stopUsageSession() {
+    if (usageHeartbeatTimer) {
+      clearInterval(usageHeartbeatTimer);
+      usageHeartbeatTimer = null;
+    }
+
+    if (usageSessionId && chrome.runtime && chrome.runtime.id) {
+      chrome.runtime.sendMessage({
+        action: 'usage_session_end',
+        sessionId: usageSessionId
+      }, () => {});
+    }
+
+    usageSessionId = null;
+  }
+
+  function handleQuotaOrAuthResponse(response) {
+    if (!response) return false;
+    if (response.quotaExceeded) {
+      stopUsageSession();
+      showFreeDailyLimitState(response.data?.message || FREE_DAILY_LIMIT_MESSAGE);
+      return true;
+    }
+    if (response.authRequired) {
+      stopUsageSession();
+      showSignifyLimitModal(response.error || 'Vui lòng đăng nhập Signify để sử dụng extension.', true);
+      return true;
+    }
+    return false;
+  }
+
+  function sendUsageHeartbeat() {
+    if (!usageSessionId || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return;
+
+    const ytVideo = document.querySelector('video.html5-main-video');
+    if (!overlayVisible || !ytVideo || ytVideo.paused || ytVideo.ended) return;
+
+    chrome.runtime.sendMessage({
+      action: 'usage_session_heartbeat',
+      sessionId: usageSessionId
+    }, (response) => {
+      if (response?.success) {
+        console.log('Signify usage heartbeat recorded:', response.data);
+      }
+      handleQuotaOrAuthResponse(response);
+    });
+  }
+
+  function startUsageSession() {
+    if (usageSessionId || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return;
+
+    chrome.runtime.sendMessage({
+      action: 'usage_session_start',
+      requestData: {
+        source: 'EXTENSION',
+        videoId: getYouTubeVideoId() || ''
+      }
+    }, (response) => {
+      if (!response) return;
+
+      if (response.success && response.data?.sessionId) {
+        usageSessionId = response.data.sessionId;
+        console.log('Signify usage session started:', usageSessionId);
+        if (usageHeartbeatTimer) clearInterval(usageHeartbeatTimer);
+        usageHeartbeatTimer = setInterval(sendUsageHeartbeat, 30000);
+        setTimeout(sendUsageHeartbeat, 30000);
+        return;
+      }
+
+      handleQuotaOrAuthResponse(response);
+    });
+  }
+
+  window.addEventListener('beforeunload', stopUsageSession);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopUsageSession();
+    else if (overlayVisible && getYouTubeVideoId()) startUsageSession();
+  });
+
   // 1. Create Picture-in-Picture visual overlay on YouTube Watch Page
   function createOverlay() {
     if (document.getElementById('signify-overlay')) {
@@ -239,38 +456,66 @@
     overlayContainer.id = 'signify-overlay';
     overlayContainer.className = 'signify-overlay-container';
 
-    // Modern glowing glassmorphic overlay design
+    // Modern glowing side-rail design
     overlayContainer.innerHTML = `
-      <div class="signify-overlay-header">
-        <span class="signify-logo-text">🧬 TRÌNH DỊCH SIGNIFY</span>
-        <button class="signify-close-btn" id="signify-close-btn">×</button>
-      </div>
-      <div class="signify-video-container">
-        <!-- High performance video player for local/cloud sign language mp4 clips -->
-        <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
-
-        <!-- Premium glassmorphic text-card fallback when no mp4 is found -->
-        <div id="signify-fallback-card" class="signify-fallback-card">
-          <span class="signify-fallback-label">DỊCH KÝ HIỆU</span>
-          <span id="signify-fallback-word" class="signify-fallback-word">Chờ dịch...</span>
+      <button class="signify-rail-toggle" id="signify-rail-toggle" title="Ẩn/hiện Signify">🧬</button>
+      <div class="signify-panel-content">
+        <div class="signify-overlay-header">
+          <span class="signify-logo-text">TRÌNH DỊCH SIGNIFY</span>
+          <button class="signify-close-btn" id="signify-close-btn">›</button>
         </div>
+        <div class="signify-user-info-box">
+          <div class="signify-user-avatar" id="signify-user-avatar">?</div>
+          <div class="signify-user-meta">
+            <div class="signify-user-label">Tài khoản đang dùng</div>
+            <div class="signify-user-name" id="signify-user-name">Đang tải...</div>
+          </div>
+          <button class="signify-login-btn" id="signify-login-btn" type="button">Đăng nhập</button>
+        </div>
+        <div class="signify-video-container">
+          <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
+          <div id="signify-fallback-card" class="signify-fallback-card">
+            <span class="signify-fallback-label">DỊCH KÝ HIỆU</span>
+            <span id="signify-fallback-word" class="signify-fallback-word">Chờ dịch...</span>
+          </div>
+        </div>
+        <p class="signify-caption-text" id="signify-caption-text">Chờ phụ đề...</p>
       </div>
-      <p class="signify-caption-text" id="signify-caption-text">Chờ phụ đề...</p>
     `;
 
     // Append to YouTube Player container or body
-    const ytPlayer = document.querySelector('.html5-video-player') || document.body;
+    const ytPlayer = document.body;
     console.log("Appending overlay to:", ytPlayer);
     ytPlayer.appendChild(overlayContainer);
     console.log("Overlay created successfully");
+
+    // Load user info
+    renderSignifyUserInfo();
+
+    const loginBtn = document.getElementById('signify-login-btn');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', openSignifyLogin);
+    }
+
+    const railToggle = document.getElementById('signify-rail-toggle');
+    if (railToggle) {
+      railToggle.addEventListener('click', () => {
+        overlayContainer.classList.toggle('signify-collapsed');
+        if (overlayContainer.classList.contains('signify-collapsed')) {
+          stopUsageSession();
+        } else {
+          startUsageSession();
+        }
+      });
+    }
 
     // Bind Close Event
     const closeBtn = document.getElementById('signify-close-btn');
     if (closeBtn) {
       closeBtn.addEventListener('click', () => {
-        overlayVisible = false;
-        overlayContainer.style.display = 'none';
-        setHideNativeCaptions(false); // Đóng overlay: hiện lại CC gốc của YouTube
+        overlayContainer.classList.add('signify-collapsed');
+        stopUsageSession();
+        setHideNativeCaptions(false); // Thu gọn overlay: hiện lại CC gốc của YouTube
       });
     }
 
@@ -282,12 +527,18 @@
       handlePlaybackError();
     });
 
-    // Ngay khi tạo overlay: phát video đứng yên làm trạng thái chờ.
-    playIdleVideo();
+    // Ngay khi tạo overlay: phát video đứng yên làm trạng thái chờ nếu còn lượt miễn phí.
+    if (quotaBlocked) {
+      showFreeDailyLimitState();
+    } else {
+      playIdleVideo();
+      startUsageSession();
+    }
   }
 
   // Phát video "đứng yên" lặp lại (trạng thái chờ). KHÔNG hiện chữ.
   function playIdleVideo() {
+    if (quotaBlocked) return;
     const videoPlayer = document.getElementById('signify-video-player');
     if (!videoPlayer) return;
     isPlaying = false;
@@ -310,6 +561,7 @@
 
   // 2. Queue Manager to Play Animations Sequentially
   function playNextAnimation() {
+    if (quotaBlocked) return;
     clearTimeout(animationTimeout);
 
     const videoPlayer = document.getElementById('signify-video-player');
@@ -346,6 +598,7 @@
 
   // 3. Play Segment-Specific Sign Language Sequences
   function playSegmentSignData(signDataList) {
+    if (quotaBlocked) return;
     animationQueue = [...signDataList];
     const videoPlayer = document.getElementById('signify-video-player');
     if (videoPlayer) {
@@ -358,8 +611,20 @@
   // 4. Send Subtitle Segment to Local Backend for Translation (AI-Backend-First with Local Fallback)
   function fetchSegmentTranslation(segment) {
     const words = splitTextIntoWords(segment.text);
+    if (!words || words.length === 0) {
+      console.log("No meaningful words found for segment, skipping backend lookup.");
+      fallbackToLocal(segment);
+      return;
+    }
+
+    if (!words || words.length === 0) {
+      console.log("No meaningful words in segment, skipping backend lookup.");
+      segment.translatedSignData = [];
+      return;
+    }
+
     const requestData = {
-      videoId: window.location.href,
+      videoId: getYouTubeVideoId() || window.location.href,
       words: words,
       text: segment.text
     };
@@ -379,6 +644,7 @@
           playSegmentSignData(segment.translatedSignData);
         }
       } else {
+        if (handleQuotaOrAuthResponse(response)) return;
         console.warn("Backend translation failed or returned empty. Falling back to local processing.");
         fallbackToLocal(segment);
       }
@@ -797,8 +1063,14 @@
 
     fullTranscript.forEach((seg) => {
       const words = splitTextIntoWords(seg.text);
+      if (!words || words.length === 0) {
+        seg.translatedSignData = [];
+        markProgress();
+        return;
+      }
+
       const requestData = {
-        videoId: window.location.href,
+        videoId: getYouTubeVideoId() || window.location.href,
         words: words,
         text: seg.text
       };
@@ -896,8 +1168,13 @@
     }
 
     const words = splitTextIntoWords(filteredText);
+    if (!words || words.length === 0) {
+      console.log("No meaningful words found after filtering, skipping backend lookup.");
+      return;
+    }
+
     const requestData = {
-      videoId: window.location.href,
+      videoId: getYouTubeVideoId() || window.location.href,
       words: words,
       text: filteredText
     };
@@ -919,6 +1196,7 @@
         console.log("🎯 Backend AI translation successful (observer mode):", text);
         playSegmentSignData(response.data);
       } else {
+        if (handleQuotaOrAuthResponse(response)) return;
         console.warn("Backend AI translation failed or empty, falling back to local.");
         const localSignData = processSubtitleLocally(text);
         if (localSignData && localSignData.length > 0) {
@@ -1047,12 +1325,15 @@
       lastActiveSegment = null;
       isSyncActive = false;
       setHideNativeCaptions(false); // Rời trang watch: trả CC về bình thường
+      stopUsageSession();
       return;
     }
 
     if (currentVideoId !== activeVideoId) {
       console.log(`🔄 Navigated to new YouTube Video: ${currentVideoId}`);
+      stopUsageSession();
       activeVideoId = currentVideoId;
+      startUsageSession();
       fullTranscript = [];
       lastActiveSegment = null;
       isSyncActive = false;

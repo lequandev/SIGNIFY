@@ -21,6 +21,9 @@ public class ServicePackageResponse {
     String duration;
     Integer durationDays;
     Integer aiLimitPerDay;
+    Integer dailyUsageMinutes;
+    Integer maxAccounts;
+    Boolean fullFeatures;
     String buttonText;
     Boolean isRecommended;
     String badge;
