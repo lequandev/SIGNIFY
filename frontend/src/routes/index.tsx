@@ -1,4 +1,4 @@
-import { createHashRouter } from 'react-router-dom';
+import { createBrowserRouter } from 'react-router-dom';
 import App from '../App';
 import AuthPage from '../pages/AuthPage';
 import VerifyEmail from '../pages/VerifyEmail';
@@ -16,7 +16,7 @@ import UserManagement from '../pages/admin/UserManagement';
 import PackageManagement from '../pages/admin/PackageManagement';
 import SubscriptionManagement from '../pages/admin/SubscriptionManagement';
 
-export const router = createHashRouter([
+export const router = createBrowserRouter([
   {
     path: '/',
     element: <App />,
