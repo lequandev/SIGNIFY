@@ -2,8 +2,6 @@ services:
   - type: web
     name: signify-backend
     env: docker
-    dockerContext: ./SIGNIFY_BE
-    dockerfilePath: ./SIGNIFY_BE/Dockerfile
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
