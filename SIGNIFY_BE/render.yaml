@@ -9,6 +9,12 @@ services:
         value: mongodb+srv://luongtk390_db_user:qIegQUXZ5xL0aR0r@signify-cluster.bgcnwfj.mongodb.net/signify?retryWrites=true&w=majority
       - key: JWT_SECRET_KEY
         generateValue: true
+      - key: FRONTEND_URL
+        value: https://signify-g3zb.onrender.com
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://signify-g3zb.onrender.com
+      - key: GOOGLE_CLIENT_ID
+        value: 803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com
       - key: PAYOS_CLIENT_ID
         sync: false
       - key: PAYOS_API_KEY

@@ -246,6 +246,7 @@ const AuthPage = () => {
                         value={signUpName}
                         onChange={(e) => setSignUpName(e.target.value)}
                         placeholder="Nguyễn Văn A"
+                        autoComplete="name"
                         required
                         className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
@@ -259,6 +260,7 @@ const AuthPage = () => {
                       value={isSignIn ? signInEmail : signUpEmail}
                       onChange={(e) => isSignIn ? setSignInEmail(e.target.value) : setSignUpEmail(e.target.value)}
                       placeholder="email@example.com"
+                      autoComplete="email"
                       required
                       className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                     />
@@ -272,6 +274,7 @@ const AuthPage = () => {
                         value={isSignIn ? signInPassword : signUpPassword}
                         onChange={(e) => isSignIn ? setSignInPassword(e.target.value) : setSignUpPassword(e.target.value)}
                         placeholder="Nhập mật khẩu"
+                        autoComplete={isSignIn ? "current-password" : "new-password"}
                         required
                         className="w-full bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />

@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+const DEFAULT_API_URL = 'http://localhost:8080/api';
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: (configuredApiUrl || DEFAULT_API_URL).replace(/\/+$/, ''),
   headers: {
     'Content-Type': 'application/json',
   },
