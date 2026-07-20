@@ -19,5 +19,5 @@ services:
         value: 1; mode=block
     routes:
       - type: rewrite
-        source: /(.*)
+        source: /.*
         destination: /index.html
