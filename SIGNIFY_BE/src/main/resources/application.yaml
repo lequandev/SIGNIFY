@@ -6,9 +6,7 @@ spring:
     name: Signify
   data:
     mongodb:
-      host: localhost
-      port: 27017
-      database: signify
+      uri: mongodb+srv://luongtk390_db_user:qIegQUXZ5xL0aR0r@signify-cluster.bgcnwfj.mongodb.net/signify?retryWrites=true&w=majority
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   servlet:
