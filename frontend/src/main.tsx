@@ -9,7 +9,9 @@ import './styles/global.css';
 
 import { ToastProvider } from './context/ToastContext';
 
-const GOOGLE_CLIENT_ID = "803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com";
+const GOOGLE_CLIENT_ID =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID ||
+  "803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com";
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
