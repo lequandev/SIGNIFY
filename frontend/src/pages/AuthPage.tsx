@@ -42,6 +42,7 @@ const AuthPage = () => {
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -97,6 +98,14 @@ const AuthPage = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    if (signUpPassword !== signUpConfirmPassword) {
+      const msg = 'Mật khẩu nhập lại không khớp.';
+      setError(msg);
+      showToast(msg, 'error');
+      setLoading(false);
+      return;
+    }
+
     try {
       await api.post('/users/register', {
         fullName: signUpName,
@@ -287,6 +296,23 @@ const AuthPage = () => {
                       </button>
                     </div>
                   </div>
+
+                  {!isSignIn && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Nhập lại mật khẩu</label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={signUpConfirmPassword}
+                          onChange={(e) => setSignUpConfirmPassword(e.target.value)}
+                          placeholder="Nhập lại mật khẩu"
+                          autoComplete="new-password"
+                          required
+                          className="w-full bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {isSignIn && (
                     <div className="flex items-center justify-between pt-1">
