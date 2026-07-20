@@ -6,7 +6,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://signify-backend.onrender.com/api
+        value: https://signify-g3zb.onrender.com/api
       - key: VITE_GOOGLE_CLIENT_ID
         value: 803514572954-ou80dm60ceo6uiaojtjb4aeja6tsaqgb.apps.googleusercontent.com
     headers:
