@@ -6,7 +6,7 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
-        value: https://signify-g3zb.onrender.com
+        value: https://signify-g3zb.onrender.com/api
     headers:
       - path: /*
         name: X-Frame-Options
