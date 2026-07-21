@@ -233,7 +233,7 @@
   }
 
   function openSignifyLogin() {
-    window.open('http://localhost:5173/login', '_blank', 'noopener,noreferrer');
+    window.open('https://signify-i3rd.onrender.com/#/login', '_blank', 'noopener,noreferrer');
   }
 
   function renderSignifyUserInfo() {
@@ -314,7 +314,7 @@
     const upgradeBtn = document.getElementById('signify-modal-upgrade-btn');
     const closeBtn = document.getElementById('signify-modal-close-btn');
     if (loginBtn) loginBtn.addEventListener('click', openSignifyLogin);
-    if (upgradeBtn) upgradeBtn.addEventListener('click', () => window.open('http://localhost:5173/packages', '_blank', 'noopener,noreferrer'));
+    if (upgradeBtn) upgradeBtn.addEventListener('click', () => window.open('https://signify-i3rd.onrender.com/#//packages', '_blank', 'noopener,noreferrer'));
     if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
   }
 
@@ -354,7 +354,7 @@
 
       const inlineUpgradeBtn = document.getElementById('signify-inline-upgrade-btn');
       if (inlineUpgradeBtn) {
-        inlineUpgradeBtn.addEventListener('click', () => window.open('http://localhost:5173/packages', '_blank', 'noopener,noreferrer'));
+        inlineUpgradeBtn.addEventListener('click', () => window.open('https://signify-i3rd.onrender.com/#//packages', '_blank', 'noopener,noreferrer'));
       }
     }
 
