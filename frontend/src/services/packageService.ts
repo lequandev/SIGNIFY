@@ -7,7 +7,7 @@ export interface Feature {
 
 export interface ServicePackage {
   id: string;
-  planType: 'individual' | 'business';
+  planType: 'individual' | 'education';
   name: string;
   description: string;
   price: string;

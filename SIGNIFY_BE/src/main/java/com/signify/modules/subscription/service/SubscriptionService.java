@@ -4,6 +4,7 @@ import com.signify.modules.subscription.model.ServicePackage;
 import com.signify.modules.subscription.model.Subscription;
 import com.signify.modules.subscription.repository.ServicePackageRepository;
 import com.signify.modules.subscription.repository.SubscriptionRepository;
+import com.signify.modules.school.service.SchoolService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -19,9 +20,15 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subscriptionRepository;
     private final ServicePackageRepository servicePackageRepository;
+    private final SchoolService schoolService;
 
     @Transactional
     public Subscription createSubscription(String userId, String packageId) {
+        return createSubscription(userId, packageId, null);
+    }
+
+    @Transactional
+    public Subscription createSubscription(String userId, String packageId, String schoolName) {
         ServicePackage servicePackage = servicePackageRepository.findById(packageId)
                 .orElseThrow(() -> new RuntimeException("Package not found"));
 
@@ -49,7 +56,11 @@ public class SubscriptionService {
                 .createdAt(LocalDateTime.now())
                 .build();
 
-        return subscriptionRepository.save(newSubscription);
+        Subscription saved = subscriptionRepository.save(newSubscription);
+        if (SchoolService.isSchoolPlan(servicePackage.getPlanType())) {
+            schoolService.provisionSchoolForSubscription(userId, saved, servicePackage, schoolName);
+        }
+        return saved;
     }
 
     public Optional<Subscription> getCurrentSubscription(String userId) {

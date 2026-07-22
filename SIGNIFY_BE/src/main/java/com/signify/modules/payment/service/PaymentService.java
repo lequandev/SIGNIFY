@@ -2,7 +2,7 @@ package com.signify.modules.payment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.signify.modules.business.service.BusinessService;
+import com.signify.modules.school.service.SchoolService;
 import com.signify.modules.payment.dto.request.CreatePaymentRequest;
 import com.signify.modules.payment.dto.response.PaymentResponse;
 import com.signify.modules.payment.model.Payment;
@@ -42,7 +42,7 @@ public class PaymentService {
     private final ServicePackageRepository servicePackageRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
-    private final BusinessService businessService;
+    private final SchoolService schoolService;
 
     @Value("${payos.return-url}")
     private String returnUrl;
@@ -67,7 +67,7 @@ public class PaymentService {
         Long orderCode = generateOrderCode();
 
         // Create Payment record
-        String organizationName = "business".equals(servicePackage.getPlanType())
+        String organizationName = SchoolService.isSchoolPlan(servicePackage.getPlanType())
                 ? resolveOrganizationName(request.getName(), servicePackage.getName())
                 : null;
         Payment payment = Payment.builder()
@@ -136,7 +136,7 @@ public class PaymentService {
 
                     // Idempotency: check if already processed
                     if ("PAID".equals(payment.getStatus())) {
-                        provisionBusinessIfNeeded(payment, null);
+                        provisionSchoolIfNeeded(payment, null);
                         log.info("Webhook already processed for orderCode={}", orderCode);
                         response.put("error", 0);
                         response.put("message", "Already processed");
@@ -206,7 +206,7 @@ public class PaymentService {
 
     private void activatePaidPayment(Payment payment, String reference) {
         if ("PAID".equals(payment.getStatus())) {
-            provisionBusinessIfNeeded(payment, null);
+            provisionSchoolIfNeeded(payment, null);
             return;
         }
 
@@ -215,10 +215,11 @@ public class PaymentService {
         payment.setPaidAt(LocalDateTime.now());
         paymentRepository.save(payment);
 
-        Subscription subscription = subscriptionService.createSubscription(payment.getUserId(), payment.getSubscriptionId());
+        Subscription subscription = subscriptionService.createSubscription(
+                payment.getUserId(), payment.getSubscriptionId(), payment.getOrganizationName());
         payment.setActivatedSubscriptionId(subscription.getId());
         paymentRepository.save(payment);
-        provisionBusinessIfNeeded(payment, subscription);
+        provisionSchoolIfNeeded(payment, subscription);
         log.info("Subscription created for user {} and package {}", payment.getUserId(), payment.getSubscriptionId());
     }
 
@@ -235,9 +236,9 @@ public class PaymentService {
         throw new RuntimeException("Could not generate unique order code");
     }
 
-    private void provisionBusinessIfNeeded(Payment payment, Subscription subscription) {
+    private void provisionSchoolIfNeeded(Payment payment, Subscription subscription) {
         ServicePackage servicePackage = servicePackageRepository.findById(payment.getSubscriptionId()).orElse(null);
-        if (servicePackage == null || !"business".equals(servicePackage.getPlanType())) {
+        if (servicePackage == null || !SchoolService.isSchoolPlan(servicePackage.getPlanType())) {
             return;
         }
 
@@ -252,7 +253,7 @@ public class PaymentService {
             return;
         }
 
-        businessService.provisionBusinessForSubscription(
+        schoolService.provisionSchoolForSubscription(
                 payment.getUserId(),
                 targetSubscription,
                 servicePackage,
@@ -264,6 +265,6 @@ public class PaymentService {
         String trimmed = name == null ? "" : name.trim();
         if (!trimmed.isEmpty()) return trimmed;
         String fallback = fallbackName == null ? "" : fallbackName.trim();
-        return fallback.isEmpty() ? "Business Organization" : fallback;
+        return fallback.isEmpty() ? "Signify School" : fallback;
     }
 }

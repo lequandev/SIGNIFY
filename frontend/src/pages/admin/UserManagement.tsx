@@ -39,7 +39,7 @@ const UserManagement = () => {
 
   const filteredUsers = users.filter(u => 
     u.fullName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (u.email || u.username || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -88,7 +88,7 @@ const UserManagement = () => {
                       </div>
                       <div className="flex flex-col">
                         <span className="text-sm font-black text-slate-900 tracking-tight">{user.fullName}</span>
-                        <span className="text-xs text-slate-400 font-medium">{user.email}</span>
+                        <span className="text-xs text-slate-400 font-medium">{user.email || user.username || 'No login ID'}</span>
                       </div>
                     </div>
                   </td>

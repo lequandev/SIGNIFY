@@ -13,6 +13,8 @@ public class AuthResponse {
     String _id; // Matches Node.js return field _id
     String fullName;
     String email;
+    String username;
     String role;
     String token;
+    Boolean mustChangePassword;
 }

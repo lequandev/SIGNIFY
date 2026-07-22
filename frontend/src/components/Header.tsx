@@ -1,33 +1,34 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { LogOut, Menu, User as UserIcon, X } from 'lucide-react';
 import { setLogout } from '../store/authSlice';
+import type { RootState } from '../store/store';
 
 const Header: React.FC = () => {
-  const { isAuthenticated, user } = useSelector((state: any) => state.auth);
+  const { isAuthenticated, user } = useSelector((state: RootState) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setIsMenuOpen(false);
-  }, [location.pathname]);
+  const [openMenuPath, setOpenMenuPath] = useState<string | null>(null);
+  const isMenuOpen = openMenuPath === location.pathname;
+  const isStudent = user?.role === 'STUDENT';
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     dispatch(setLogout());
-    setIsMenuOpen(false);
+    setOpenMenuPath(null);
     navigate('/login');
   };
 
-  const navItems = [
-    { to: '/', label: 'Tính năng' },
-    { to: '/packages', label: 'Dịch vụ' },
-    { to: '/about', label: 'Về chúng tôi' },
-    { to: '/contact', label: 'Liên hệ' },
-  ];
+  const navItems = isStudent
+    ? []
+    : [
+        { to: '/', label: 'Tính năng' },
+        { to: '/packages', label: 'Dịch vụ' },
+        { to: '/about', label: 'Về chúng tôi' },
+        { to: '/contact', label: 'Liên hệ' },
+      ];
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `text-sm font-medium transition-colors duration-200 ${isActive ? 'text-primary font-semibold' : 'text-on-surface-variant hover:text-primary'}`;
@@ -39,7 +40,7 @@ const Header: React.FC = () => {
     <header className="fixed top-0 left-0 right-0 z-50 h-[72px] bg-surface-container-lowest/80 backdrop-blur-md border-b border-outline-variant flex items-center justify-center font-sans">
       <div className="w-full max-w-[1400px] px-4 sm:px-6 lg:px-12 flex items-center justify-between gap-3">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-4 shrink-0 hover:opacity-85 transition-opacity">
+        <Link to={isStudent ? '/my-lessons' : '/'} className="flex items-center gap-4 shrink-0 hover:opacity-85 transition-opacity">
           <img src="/logo_removebg.png" alt="Signify Logo" className="h-9 sm:h-10 object-contain hover:scale-105 transition-transform" />
         </Link>
 
@@ -79,7 +80,7 @@ const Header: React.FC = () => {
 
           <button
             type="button"
-            onClick={() => setIsMenuOpen((open) => !open)}
+            onClick={() => setOpenMenuPath(isMenuOpen ? null : location.pathname)}
             className="lg:hidden w-10 h-10 rounded-xl border border-outline-variant/60 bg-surface-container-lowest text-on-surface flex items-center justify-center shadow-sm hover:text-primary hover:border-primary/40 transition-colors"
             aria-expanded={isMenuOpen}
             aria-controls="mobile-navigation"
@@ -102,7 +103,7 @@ const Header: React.FC = () => {
             <div className="mt-4 border-t border-outline-variant/50 pt-4">
               {isAuthenticated ? (
                 <div className="grid gap-2">
-                  <NavLink to="/profile" className={mobileNavLinkClass}>Hồ sơ cá nhân</NavLink>
+                  {!isStudent && <NavLink to="/profile" className={mobileNavLinkClass}>Hồ sơ cá nhân</NavLink>}
                   <button onClick={handleLogout} className="rounded-2xl px-4 py-3 text-left text-sm font-bold text-error hover:bg-error/10 transition-all flex items-center gap-2">
                     <LogOut className="w-4 h-4" />
                     Đăng xuất

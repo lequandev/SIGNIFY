@@ -62,33 +62,36 @@ public class DataSeeder implements CommandLineRunner {
                         false,
                         "Tốt nhất"
                 ),
-                businessPackage(
-                        "Gói Doanh nghiệp - 1 tháng",
-                        "500,000",
+                educationPackage(
+                        "Gói Giáo dục - 1 tháng",
+                        "5,000",
                         "tháng",
                         30,
-                        "Quản lý tối đa 20 tài khoản trong một doanh nghiệp trong 1 tháng.",
-                        "Chọn Business 1 tháng",
+                        50,
+                        "Giải pháp cho trường học: tối đa 50 tài khoản giáo viên và học sinh trong 1 tháng.",
+                        "Chọn Giáo dục 1 tháng",
                         false,
                         null
                 ),
-                businessPackage(
-                        "Gói Doanh nghiệp - 6 tháng",
-                        "2,799,000",
+                educationPackage(
+                        "Gói Giáo dục - 6 tháng",
+                        "3,600,000",
                         "6 tháng",
                         180,
-                        "Giải pháp doanh nghiệp 6 tháng cho đội nhóm cần quản lý thành viên tập trung.",
-                        "Chọn Business 6 tháng",
+                        100,
+                        "Giải pháp trường học 6 tháng, tối đa 100 tài khoản, quản lý lớp và tiến độ học tập.",
+                        "Chọn Giáo dục 6 tháng",
                         true,
-                        "Doanh nghiệp chọn"
+                        "Trường học chọn"
                 ),
-                businessPackage(
-                        "Gói Doanh nghiệp - 12 tháng",
-                        "5,500,000",
+                educationPackage(
+                        "Gói Giáo dục - 12 tháng",
+                        "6,900,000",
                         "12 tháng",
                         365,
-                        "Giải pháp dài hạn cho doanh nghiệp với đầy đủ quyền quản lý thành viên.",
-                        "Chọn Business 12 tháng",
+                        200,
+                        "Giải pháp dài hạn cho trường học với tối đa 200 tài khoản và đầy đủ tính năng giáo dục.",
+                        "Chọn Giáo dục 12 tháng",
                         false,
                         "Dài hạn"
                 )
@@ -159,18 +162,19 @@ public class DataSeeder implements CommandLineRunner {
                 .build();
     }
 
-    private ServicePackage businessPackage(
+    private ServicePackage educationPackage(
             String name,
             String price,
             String duration,
             Integer durationDays,
+            Integer maxAccounts,
             String description,
             String buttonText,
             Boolean isRecommended,
             String badge
     ) {
         return ServicePackage.builder()
-                .planType("business")
+                .planType("education")
                 .name(name)
                 .price(price)
                 .duration(duration)
@@ -178,16 +182,16 @@ public class DataSeeder implements CommandLineRunner {
                 .description(description)
                 .aiLimitPerDay(null)
                 .dailyUsageMinutes(null)
-                .maxAccounts(20)
+                .maxAccounts(maxAccounts)
                 .fullFeatures(true)
                 .buttonText(buttonText)
                 .isRecommended(isRecommended)
                 .badge(badge)
                 .features(Arrays.asList(
-                        new ServicePackage.Feature("Users", "Tối đa 20 tài khoản trong một doanh nghiệp"),
-                        new ServicePackage.Feature("Shield", "01 tài khoản Admin quản lý toàn bộ doanh nghiệp"),
-                        new ServicePackage.Feature("UserCog", "Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên"),
-                        new ServicePackage.Feature("Globe", "Quản lý danh sách thành viên và quyền truy cập trên một hệ thống tập trung"),
+                        new ServicePackage.Feature("GraduationCap", "Tối đa " + maxAccounts + " tài khoản giáo viên và học sinh"),
+                        new ServicePackage.Feature("Shield", "01 tài khoản School Admin quản lý toàn bộ trường"),
+                        new ServicePackage.Feature("Users", "Giáo viên tạo lớp, thêm học sinh và giao video học tập"),
+                        new ServicePackage.Feature("LineChart", "Theo dõi tiến độ và đánh giá kết quả học tập của từng học sinh"),
                         new ServicePackage.Feature("Zap", "Toàn bộ thành viên được sử dụng đầy đủ các tính năng của Signify")
                 ))
                 .createdAt(LocalDateTime.now())
