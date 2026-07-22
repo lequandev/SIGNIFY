@@ -17,6 +17,8 @@ public class DictionaryLookupRequest {
     @NotBlank(message = "Video ID is required")
     String videoId;
 
+    String aiProcessingId;
+
     @NotEmpty(message = "Words list cannot be empty")
     List<String> words;
 

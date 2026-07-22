@@ -35,6 +35,9 @@ public class School {
 
     String status;
 
+    Integer teacherDailyAiMinutes;
+    Integer studentDailyAiMinutes;
+
     @CreatedDate
     LocalDateTime createdAt;
 

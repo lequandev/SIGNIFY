@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ServicePackageService {
 
+    private static final int DEFAULT_ORGANIZATION_AI_MINUTES = 10000;
+    private static final int DEFAULT_PERSONAL_AI_MINUTES = 800;
     private final ServicePackageRepository servicePackageRepository;
 
     public List<ServicePackageResponse> getAllPackages() {
@@ -53,16 +55,15 @@ public class ServicePackageService {
                 .durationDays(durationDays)
                 .aiLimitPerDay(request.getAiLimitPerDay() != null ? request.getAiLimitPerDay() : 10)
                 .dailyUsageMinutes(request.getDailyUsageMinutes())
-                .maxAccounts(request.getMaxAccounts())
+                .monthlyAiMinutes(request.getMonthlyAiMinutes() != null
+                        ? request.getMonthlyAiMinutes()
+                        : "education".equalsIgnoreCase(request.getPlanType())
+                                ? DEFAULT_ORGANIZATION_AI_MINUTES
+                                : DEFAULT_PERSONAL_AI_MINUTES)
                 .fullFeatures(request.getFullFeatures() != null ? request.getFullFeatures() : true)
                 .buttonText("Bắt Đầu Ngay")
                 .isRecommended(false)
-                .features(Arrays.asList(
-                        new ServicePackage.Feature("Cpu", "Dịch thuật AI theo thời gian thực"),
-                        new ServicePackage.Feature("Zap", "Không giới hạn số phút sử dụng mỗi ngày"),
-                        new ServicePackage.Feature("Globe", "Hỗ trợ tất cả các phương ngữ ngôn ngữ ký hiệu"),
-                        new ServicePackage.Feature("Shield", "Trải nghiệm hoàn toàn không quảng cáo")
-                ))
+                .features(buildFeatures(request.getPlanType(), request.getMonthlyAiMinutes()))
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -103,12 +104,17 @@ public class ServicePackageService {
         }
         if (request.getPlanType() != null) {
             pkg.setPlanType(request.getPlanType());
+            if (request.getMonthlyAiMinutes() == null) {
+                pkg.setMonthlyAiMinutes("education".equalsIgnoreCase(request.getPlanType())
+                        ? DEFAULT_ORGANIZATION_AI_MINUTES
+                        : DEFAULT_PERSONAL_AI_MINUTES);
+            }
         }
         if (request.getDailyUsageMinutes() != null) {
             pkg.setDailyUsageMinutes(request.getDailyUsageMinutes());
         }
-        if (request.getMaxAccounts() != null) {
-            pkg.setMaxAccounts(request.getMaxAccounts());
+        if (request.getMonthlyAiMinutes() != null) {
+            pkg.setMonthlyAiMinutes(request.getMonthlyAiMinutes());
         }
         if (request.getFullFeatures() != null) {
             pkg.setFullFeatures(request.getFullFeatures());
@@ -125,6 +131,27 @@ public class ServicePackageService {
         servicePackageRepository.deleteById(id);
     }
 
+    private List<ServicePackage.Feature> buildFeatures(String planType, Integer monthlyAiMinutes) {
+        if ("education".equalsIgnoreCase(planType)) {
+            int minutes = monthlyAiMinutes != null && monthlyAiMinutes > 0
+                    ? monthlyAiMinutes : DEFAULT_ORGANIZATION_AI_MINUTES;
+            return Arrays.asList(
+                    new ServicePackage.Feature("Cpu", String.format("%,d", minutes).replace(',', '.') + " phút AI mỗi tháng"),
+                    new ServicePackage.Feature("Plus", "Mua thêm 1.000 phút AI với giá 399.000đ khi hết quota"),
+                    new ServicePackage.Feature("GraduationCap", "Không giới hạn tài khoản giáo viên và học sinh"),
+                    new ServicePackage.Feature("Users", "Quản lý lớp học, thành viên và tiến độ tập trung"),
+                    new ServicePackage.Feature("Shield", "01 tài khoản School Admin quản lý toàn bộ trường")
+            );
+        }
+        return Arrays.asList(
+                new ServicePackage.Feature("Cpu", String.format("%,d", monthlyAiMinutes != null && monthlyAiMinutes > 0
+                        ? monthlyAiMinutes : DEFAULT_PERSONAL_AI_MINUTES).replace(',', '.') + " phút AI mỗi tháng"),
+                new ServicePackage.Feature("Plus", "Mua thêm 200 phút AI với giá 29.000đ khi hết quota"),
+                new ServicePackage.Feature("Globe", "Hỗ trợ tất cả các phương ngữ ngôn ngữ ký hiệu"),
+                new ServicePackage.Feature("Shield", "Trải nghiệm hoàn toàn không quảng cáo")
+        );
+    }
+
     private ServicePackageResponse mapToResponse(ServicePackage pkg) {
         return ServicePackageResponse.builder()
                 .id(pkg.getId())
@@ -136,12 +163,12 @@ public class ServicePackageService {
                 .durationDays(pkg.getDurationDays())
                 .aiLimitPerDay(pkg.getAiLimitPerDay())
                 .dailyUsageMinutes(pkg.getDailyUsageMinutes())
-                .maxAccounts(pkg.getMaxAccounts())
+                .monthlyAiMinutes(pkg.getMonthlyAiMinutes())
                 .fullFeatures(pkg.getFullFeatures())
                 .buttonText(pkg.getButtonText())
                 .isRecommended(pkg.getIsRecommended())
                 .badge(pkg.getBadge())
-                .features(pkg.getFeatures())
+                .features(buildFeatures(pkg.getPlanType(), pkg.getMonthlyAiMinutes()))
                 .build();
     }
 }

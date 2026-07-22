@@ -1,6 +1,7 @@
 package com.signify.modules.ai.controller;
 
 import com.signify.modules.ai.dto.DictionaryLookupRequest;
+import com.signify.modules.ai.dto.ResolveSignAnimationsRequest;
 import com.signify.modules.ai.dto.SegmentRequest;
 import com.signify.modules.ai.dto.SignData;
 import com.signify.modules.ai.dto.SignSequenceRequest;
@@ -8,6 +9,9 @@ import com.signify.modules.ai.dto.TranscriptEvent;
 import com.signify.modules.ai.model.GlossaryTerm;
 import com.signify.modules.ai.service.AiProcessingService;
 import com.signify.modules.entitlement.service.EntitlementService;
+import com.signify.modules.entitlement.exception.AiUsageException;
+import com.signify.modules.entitlement.service.SchoolAiUsageService;
+import com.signify.modules.entitlement.service.AiVideoSegmentCacheService;
 import com.signify.modules.youtube.service.YoutubeVideoService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +31,8 @@ public class AiProcessingController {
 
     private final AiProcessingService aiProcessingService;
     private final EntitlementService entitlementService;
+    private final SchoolAiUsageService schoolAiUsageService;
+    private final AiVideoSegmentCacheService aiVideoSegmentCacheService;
     private final YoutubeVideoService youtubeVideoService;
 
     @PostMapping("/sign-sequence")
@@ -45,15 +51,45 @@ public class AiProcessingController {
                     "message", "Vui lòng đăng nhập Signify để sử dụng extension."
             ));
         }
-        if (!entitlementService.canUseFeature(userId)) {
+        boolean schoolRequest;
+        try {
+            schoolRequest = schoolAiUsageService.validateSchoolProcessing(
+                    userId, request.getVideoId(), request.getAiProcessingId());
+            if (!schoolRequest && !entitlementService.canUseFeature(userId)) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "code", "FREE_DAILY_LIMIT_REACHED",
+                        "message", "Bạn đã dùng hết 20 phút miễn phí hôm nay. Vui lòng nâng cấp gói để tiếp tục."
+                ));
+            }
+        } catch (AiUsageException exception) {
             return ResponseEntity.status(403).body(Map.of(
-                    "code", "FREE_DAILY_LIMIT_REACHED",
-                    "message", "Bạn đã dùng hết 20 phút miễn phí hôm nay. Vui lòng nâng cấp gói để tiếp tục."
+                    "code", exception.getCode(),
+                    "message", exception.getMessage()
             ));
         }
 
+        String cacheText = request.getText() != null ? request.getText() : String.join(" ", request.getWords());
+        if (schoolRequest) {
+            var cached = aiVideoSegmentCacheService.find(request.getAiProcessingId(), cacheText);
+            if (cached.isPresent()) {
+                List<String> cachedWords = cached.get().stream()
+                        .map(SignData::getWord)
+                        .filter(java.util.Objects::nonNull)
+                        .toList();
+                return ResponseEntity.ok(aiProcessingService.resolveSignAnimations(cachedWords));
+            }
+        }
         List<SignData> response = aiProcessingService.dictionaryLookup(request.getWords(), request.getText());
+        if (schoolRequest) {
+            aiVideoSegmentCacheService.save(request.getAiProcessingId(), request.getVideoId(), cacheText, response);
+        }
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/resolve-sign-animations")
+    public ResponseEntity<List<SignData>> resolveSignAnimations(
+            @Valid @RequestBody ResolveSignAnimationsRequest request) {
+        return ResponseEntity.ok(aiProcessingService.resolveSignAnimations(request.getWords()));
     }
 
     /**

@@ -23,6 +23,7 @@ import com.signify.modules.user.model.Role;
 import com.signify.modules.user.model.User;
 import com.signify.modules.user.repository.UserRepository;
 import com.signify.modules.tracking.repository.HistoryRepository;
+import com.signify.modules.tracking.repository.VideoWatchHistoryRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -38,8 +39,8 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
- * Core service for the education "school" domain. Mirrors the quota/context
- * quota and context logic adapted to school roles
+ * Core service for the education "school" domain. Handles school context
+ * and permissions adapted to school roles
  * (SCHOOL_ADMIN / TEACHER / STUDENT) and the {@code education} plan type.
  */
 @Service
@@ -49,7 +50,6 @@ public class SchoolService {
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_INACTIVE = "INACTIVE";
     public static final String PLAN_TYPE_EDUCATION = "education";
-    static final int DEFAULT_MAX_ACCOUNTS = 50;
     public static final String SCHOOL_NOT_FOUND = "SCHOOL_NOT_FOUND";
     public static final String SCHOOL_FORBIDDEN = "SCHOOL_FORBIDDEN";
 
@@ -60,6 +60,7 @@ public class SchoolService {
     private final AssignmentProgressRepository assignmentProgressRepository;
     private final EvaluationRepository evaluationRepository;
     private final HistoryRepository historyRepository;
+    private final VideoWatchHistoryRepository videoWatchHistoryRepository;
     private final UserRepository userRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final ServicePackageRepository servicePackageRepository;
@@ -88,6 +89,21 @@ public class SchoolService {
         context.school().setUpdatedAt(LocalDateTime.now());
         schoolRepository.save(context.school());
         return toOverviewResponse(context);
+    }
+
+    @Transactional
+    public SchoolContext updateDailyAiLimits(
+            String adminUserId, int teacherDailyAiMinutes, int studentDailyAiMinutes) {
+        SchoolContext context = resolveManagedSchoolContext(adminUserId);
+        if (teacherDailyAiMinutes < 0 || teacherDailyAiMinutes > 1440
+                || studentDailyAiMinutes < 0 || studentDailyAiMinutes > 1440) {
+            throw new IllegalArgumentException("Giới hạn AI mỗi ngày phải từ 0 đến 1.440 phút.");
+        }
+        context.school().setTeacherDailyAiMinutes(teacherDailyAiMinutes);
+        context.school().setStudentDailyAiMinutes(studentDailyAiMinutes);
+        context.school().setUpdatedAt(LocalDateTime.now());
+        schoolRepository.save(context.school());
+        return context;
     }
 
     public Optional<SchoolEntitlementContext> getActiveSchoolEntitlement(String userId) {
@@ -182,6 +198,8 @@ public class SchoolService {
                 .ownerUserId(userId)
                 .subscriptionId(subscription.getId())
                 .status(STATUS_ACTIVE)
+                .teacherDailyAiMinutes(0)
+                .studentDailyAiMinutes(0)
                 .createdAt(now)
                 .updatedAt(now)
                 .build();
@@ -249,7 +267,6 @@ public class SchoolService {
                 throw new SchoolConflictException("ROLE_NOT_COMPATIBLE", "Tài khoản hiện tại không thể được mời làm giáo viên.");
             }
         }
-        ensureQuotaAvailable(context);
         LocalDateTime now = LocalDateTime.now();
         SchoolInvitation invitation = invitationRepository
                 .findBySchoolIdAndEmailAndStatus(context.school().getId(), normalizedEmail, "PENDING")
@@ -310,7 +327,6 @@ public class SchoolService {
         }
         SchoolContext context = resolveSchoolContext(invitation.getInviterUserId())
                 .orElseThrow(() -> new RuntimeException(SCHOOL_NOT_FOUND));
-        ensureQuotaAvailable(context);
         SchoolMembership membership = addMembership(context, userId, Role.TEACHER);
         user.setRole(Role.TEACHER);
         user.setStatus(STATUS_ACTIVE);
@@ -355,7 +371,6 @@ public class SchoolService {
             throw new RuntimeException(SCHOOL_FORBIDDEN);
         }
         String normalizedName = requireFullName(fullName);
-        ensureQuotaAvailable(context);
         String username = resolveStudentUsername(preferredUsername);
         String temporaryPassword = generateTemporaryPassword();
         User user = User.builder()
@@ -483,13 +498,13 @@ public class SchoolService {
         assignmentProgressRepository.deleteByStudentId(studentUserId);
         evaluationRepository.deleteByStudentId(studentUserId);
         historyRepository.deleteByUserId(studentUserId);
+        videoWatchHistoryRepository.deleteByUserId(studentUserId);
         membershipRepository.deleteByUserId(studentUserId);
         userRepository.deleteById(studentUserId);
     }
 
     /**
      * Create a membership for an already-existing user in the given school.
-     * Enforces the maxAccounts quota. Used by teacher/student provisioning.
      */
     @Transactional
     public SchoolMembership addMembership(SchoolContext context, String userId, String role) {
@@ -497,7 +512,6 @@ public class SchoolService {
         if (existing.isPresent()) {
             return existing.get();
         }
-        ensureQuotaAvailable(context);
         LocalDateTime now = LocalDateTime.now();
         SchoolMembership membership = SchoolMembership.builder()
                 .schoolId(context.school.getId())
@@ -509,15 +523,6 @@ public class SchoolService {
                 .build();
         return membershipRepository.save(membership);
     }
-
-    void ensureQuotaAvailable(SchoolContext context) {
-        long memberCount = membershipRepository.countBySchoolId(context.school.getId());
-        int maxAccounts = resolveMaxAccounts(context.servicePackage);
-        if (memberCount >= maxAccounts) {
-            throw new RuntimeException("Trường đã đạt giới hạn " + maxAccounts + " tài khoản.");
-        }
-    }
-
 
     private SchoolOverviewResponse toOverviewResponse(SchoolContext context) {
         String schoolId = context.school.getId();
@@ -536,7 +541,6 @@ public class SchoolService {
                 .memberCount(memberCount)
                 .teacherCount(teacherCount)
                 .studentCount(studentCount)
-                .maxAccounts(resolveMaxAccounts(context.servicePackage))
                 .canManageMembers(Role.SCHOOL_ADMIN.equals(context.membership.getRole()))
                 .build();
     }
@@ -611,12 +615,6 @@ public class SchoolService {
     /** True for education subscriptions. Legacy package values are migrated at startup. */
     public static boolean isSchoolPlan(String planType) {
         return PLAN_TYPE_EDUCATION.equals(planType);
-    }
-
-    private int resolveMaxAccounts(ServicePackage servicePackage) {
-        return servicePackage != null && servicePackage.getMaxAccounts() != null
-                ? servicePackage.getMaxAccounts()
-                : DEFAULT_MAX_ACCOUNTS;
     }
 
     /**

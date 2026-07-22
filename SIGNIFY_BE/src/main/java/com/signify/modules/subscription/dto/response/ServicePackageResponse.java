@@ -22,7 +22,7 @@ public class ServicePackageResponse {
     Integer durationDays;
     Integer aiLimitPerDay;
     Integer dailyUsageMinutes;
-    Integer maxAccounts;
+    Integer monthlyAiMinutes;
     Boolean fullFeatures;
     String buttonText;
     Boolean isRecommended;

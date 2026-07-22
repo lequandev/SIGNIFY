@@ -8,6 +8,7 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import './styles/global.css';
 
 import { ToastProvider } from './context/ToastContext';
+import AuthBootstrap from './components/AuthBootstrap';
 
 const GOOGLE_CLIENT_ID =
   import.meta.env.VITE_GOOGLE_CLIENT_ID ||
@@ -18,7 +19,9 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <Provider store={store}>
         <ToastProvider>
-          <RouterProvider router={router} />
+          <AuthBootstrap>
+            <RouterProvider router={router} />
+          </AuthBootstrap>
         </ToastProvider>
       </Provider>
     </GoogleOAuthProvider>

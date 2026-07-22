@@ -23,6 +23,5 @@ public class SchoolOverviewResponse {
     long memberCount;
     long teacherCount;
     long studentCount;
-    int maxAccounts;
     boolean canManageMembers;
 }

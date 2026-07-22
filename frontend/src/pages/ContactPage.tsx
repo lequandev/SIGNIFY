@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { useLocation } from 'react-router-dom';
 import { Mail, Phone, MapPin, Send, MessageSquare, Clock } from 'lucide-react';
+import CustomSelect from '../components/CustomSelect';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 
@@ -41,6 +42,7 @@ const ContactPage = () => {
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [subjectError, setSubjectError] = useState(false);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
@@ -48,6 +50,10 @@ const ContactPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.subject) {
+      setSubjectError(true);
+      return;
+    }
     setIsSubmitting(true);
     // Simulate form submission
     setTimeout(() => {
@@ -57,7 +63,7 @@ const ContactPage = () => {
     }, 1500);
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -150,20 +156,26 @@ const ContactPage = () => {
                   
                   <div>
                     <label className="block text-sm font-bold text-on-surface mb-2">Chủ đề</label>
-                    <select
-                      name="subject"
+                    <CustomSelect
                       value={formData.subject}
-                      onChange={handleChange}
-                      required
-                      className="w-full bg-white border border-outline-variant/60 rounded-xl px-4 py-3 text-base text-on-surface focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
-                    >
-                      <option value="">Chọn chủ đề</option>
-                      <option value="support">Hỗ trợ kỹ thuật</option>
-                      <option value="sales">Tư vấn dịch vụ</option>
-                      <option value="partnership">Hợp tác kinh doanh</option>
-                      <option value="feedback">Góp ý</option>
-                      <option value="other">Khác</option>
-                    </select>
+                      onChange={subject => {
+                        setFormData(current => ({ ...current, subject }));
+                        setSubjectError(false);
+                      }}
+                      options={[
+                        { value: 'support', label: 'Hỗ trợ kỹ thuật' },
+                        { value: 'sales', label: 'Tư vấn dịch vụ' },
+                        { value: 'partnership', label: 'Hợp tác kinh doanh' },
+                        { value: 'feedback', label: 'Góp ý' },
+                        { value: 'other', label: 'Khác' },
+                      ]}
+                      placeholder="Chọn chủ đề"
+                      ariaLabel="Chủ đề"
+                      leadingIcon={MessageSquare}
+                      invalid={subjectError}
+                      buttonClassName="h-12 bg-white px-4 text-base"
+                    />
+                    {subjectError && <p className="mt-1.5 text-sm font-medium text-error">Vui lòng chọn chủ đề.</p>}
                   </div>
                   
                   <div>

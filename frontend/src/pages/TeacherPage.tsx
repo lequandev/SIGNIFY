@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { BarChart3, BookOpen, CalendarDays, CheckCircle2, ChevronDown, Clock3, Copy, ExternalLink, GraduationCap, KeyRound, Loader2, Mail, Pencil, Plus, Save, Send, UserPlus, Users, Video, X } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { BarChart3, BookOpen, CalendarDays, CheckCircle2, Clock3, Copy, ExternalLink, GraduationCap, KeyRound, Loader2, Mail, Pencil, Plus, Save, Send, UserPlus, UserRound, Users, Video, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import ConfirmModal from '../components/ConfirmModal';
+import CustomSelect from '../components/CustomSelect';
 import MemberDetailsModal from '../components/MemberDetailsModal';
 import WorkspaceTopbar from '../components/WorkspaceTopbar';
+import WatchHistoryPanel from '../components/WatchHistoryPanel';
 import { useToast } from '../context/ToastContext';
 import { addStudentToClass, Classroom, ClassroomStudent, createClass, getClasses, getClassStudents, updateClass } from '../services/classroomService';
 import { createStudent, getMySchool, getSchoolMembers, resetStudentPassword, SchoolMember } from '../services/schoolService';
@@ -37,6 +39,7 @@ const TeacherPage: React.FC = () => {
   const [classForm, setClassForm] = useState({ name: '', description: '' });
   const [studentForm, setStudentForm] = useState({ fullName: '', username: '' });
   const [existingStudentId, setExistingStudentId] = useState('');
+  const [existingStudentError, setExistingStudentError] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState({ youtubeUrl: '', title: '', dueDate: '' });
   const [credentials, setCredentials] = useState<Credentials | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
@@ -48,6 +51,10 @@ const TeacherPage: React.FC = () => {
   const [classEditForm, setClassEditForm] = useState({ name: '', description: '' });
   const [savingClass, setSavingClass] = useState(false);
   const [dueDateEnabled, setDueDateEnabled] = useState(false);
+  const availableSchoolStudents = useMemo(() => {
+    const enrolledStudentIds = new Set(students.map(student => student.id));
+    return schoolStudents.filter(student => !enrolledStudentIds.has(student.userId));
+  }, [schoolStudents, students]);
 
   const loadSchoolStudents = useCallback(async () => {
     try { setSchoolStudents(await getSchoolMembers('STUDENT')); }
@@ -143,10 +150,15 @@ const TeacherPage: React.FC = () => {
 
   const handleEnrollExisting = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!selected || !existingStudentId) return;
+    if (!selected) return;
+    if (!existingStudentId || !availableSchoolStudents.some(student => student.userId === existingStudentId)) {
+      setExistingStudentError(true);
+      return;
+    }
     try {
       await addStudentToClass(selected.id, existingStudentId);
       setExistingStudentId('');
+      setExistingStudentError(false);
       await loadClass(selected);
       showToast('Đã thêm học sinh vào lớp', 'success');
       setStudentModalOpen(false);
@@ -283,7 +295,7 @@ const TeacherPage: React.FC = () => {
                     <section className="overflow-hidden rounded-2xl border border-outline-variant/55 bg-surface-container-lowest shadow-sm">
                       <div className="flex flex-col gap-3 border-b border-outline-variant/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                         <div><h3 className="flex items-center gap-2 font-extrabold"><Users className="h-4 w-4 text-secondary" />Học sinh trong lớp</h3><p className="mt-1 text-xs text-on-surface-variant">Bấm vào học sinh để xem tài khoản và thông tin chi tiết.</p></div>
-                        <button type="button" onClick={() => setStudentModalOpen(true)} className="inline-flex h-9 items-center justify-center gap-2 self-start rounded-xl bg-secondary px-3 text-xs font-extrabold text-on-secondary shadow-sm transition hover:bg-on-secondary-fixed-variant sm:self-auto"><UserPlus className="h-4 w-4" />Thêm học sinh</button>
+                        <button type="button" onClick={() => { setExistingStudentError(false); setStudentModalOpen(true); }} className="inline-flex h-9 items-center justify-center gap-2 self-start rounded-xl bg-secondary px-3 text-xs font-extrabold text-on-secondary shadow-sm transition hover:bg-on-secondary-fixed-variant sm:self-auto"><UserPlus className="h-4 w-4" />Thêm học sinh</button>
                       </div>
                       <div className="divide-y divide-outline-variant/35">{students.map(student => <div key={student.id} onClick={() => openStudentDetails(student)} className="group grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 px-5 py-4 transition hover:bg-surface-container-low sm:px-6"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-secondary/10 text-sm font-black text-secondary">{student.fullName.slice(0, 1).toUpperCase()}</div><div className="min-w-0"><div className="flex items-center gap-2"><p className="truncate text-sm font-extrabold">{student.fullName}</p><span className="hidden shrink-0 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-extrabold text-emerald-700 md:inline-flex">Đang học</span></div><p className="mt-1 truncate text-xs text-on-surface-variant">{student.username || student.email || 'Chưa có mã đăng nhập'}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" title="Đặt lại mật khẩu" aria-label={`Đặt lại mật khẩu cho ${student.fullName}`} onClick={event => { event.stopPropagation(); requestResetPassword(student); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-primary/10 hover:text-primary"><KeyRound className="h-4 w-4" /></button><button type="button" title="Đánh giá học sinh" aria-label={`Đánh giá ${student.fullName}`} onClick={event => { event.stopPropagation(); void evaluate(student); }} className="flex h-8 w-8 items-center justify-center rounded-lg text-on-surface-variant transition hover:bg-secondary/10 hover:text-secondary"><Mail className="h-4 w-4" /></button></div></div>)}{students.length === 0 && <div className="px-6 py-12 text-center"><Users className="mx-auto h-8 w-8 text-outline" /><p className="mt-3 text-sm font-bold">Chưa có học sinh trong lớp</p><p className="mt-1 text-xs text-on-surface-variant">Dùng nút Thêm học sinh để bắt đầu.</p></div>}</div>
                     </section>
@@ -333,6 +345,11 @@ const TeacherPage: React.FC = () => {
                       {assignments.length === 0 && <p className="px-6 py-12 text-center text-sm text-on-surface-variant">Chưa có bài học được giao.</p>}
                     </div>
                   </section>
+
+                  <section>
+                    <div className="mb-4"><h2 className="flex items-center gap-2 text-lg font-black"><Video className="h-5 w-5 text-secondary" />Hoạt động xem bằng extension</h2><p className="mt-1 text-sm text-on-surface-variant">Lịch sử của học sinh trong {selected.name}.</p></div>
+                    <WatchHistoryPanel scope="student" classId={selected.id} people={students.map(student => ({ id: student.id, fullName: student.fullName, role: 'STUDENT' }))} />
+                  </section>
                 </div>
               )}
             </div>
@@ -374,8 +391,31 @@ const TeacherPage: React.FC = () => {
                 </form>
               ) : (
                 <form onSubmit={handleEnrollExisting} className="space-y-4">
-                  <label className="block text-xs font-bold text-on-surface-variant">Học sinh trong trường<span className="relative mt-1.5 block"><select value={existingStudentId} onChange={event => setExistingStudentId(event.target.value)} className="h-11 w-full appearance-none rounded-xl border border-outline-variant/60 bg-surface-container px-3 pr-10 text-sm font-medium text-on-surface outline-none transition focus:border-secondary focus:ring-2 focus:ring-secondary/15" required><option value="">Chọn một học sinh</option>{schoolStudents.map(student => <option key={student.userId} value={student.userId}>{student.fullName} ({student.username || 'chưa có mã'})</option>)}</select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" /></span></label>
-                  <button type="submit" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-sm font-bold text-on-secondary shadow-sm transition hover:bg-on-secondary-fixed-variant"><Plus className="h-4 w-4" />Thêm vào lớp</button>
+                  <div className="block min-w-0">
+                    <span className="block text-xs font-bold text-on-surface-variant">Học sinh trong trường</span>
+                    <CustomSelect
+                      ariaLabel="Học sinh trong trường"
+                      leadingIcon={UserRound}
+                      accent="secondary"
+                      value={existingStudentId}
+                      onChange={value => {
+                        setExistingStudentId(value);
+                        setExistingStudentError(false);
+                      }}
+                      invalid={existingStudentError}
+                      disabled={availableSchoolStudents.length === 0}
+                      placeholder={availableSchoolStudents.length > 0 ? 'Chọn một học sinh' : 'Không còn học sinh để thêm'}
+                      options={availableSchoolStudents.map(student => ({
+                        value: student.userId,
+                        label: `${student.fullName} (${student.username || 'chưa có mã'})`,
+                      }))}
+                      className="mt-1.5"
+                      buttonClassName="bg-surface-container"
+                    />
+                    {existingStudentError && <p className="mt-1.5 text-xs font-semibold text-error">Vui lòng chọn một học sinh.</p>}
+                    {availableSchoolStudents.length === 0 && <p className="mt-1.5 text-xs font-medium text-on-surface-variant">Tất cả học sinh trong trường đã thuộc lớp này.</p>}
+                  </div>
+                  <button type="submit" disabled={availableSchoolStudents.length === 0} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-secondary px-4 text-sm font-bold text-on-secondary shadow-sm transition hover:bg-on-secondary-fixed-variant disabled:cursor-not-allowed disabled:opacity-50"><Plus className="h-4 w-4" />Thêm vào lớp</button>
                 </form>
               )}
             </div>

@@ -30,26 +30,17 @@ public class AiProcessingService {
     private final GlossCacheRepository glossCacheRepository;
     private final GlossaryTermRepository glossaryTermRepository;
 
-    // Executor để chạy Gemini ở NỀN (không chặn request của người dùng).
+    // Executor để nâng cấp cache bằng Groq ở nền (không chặn request của người dùng).
     // 1 luồng duy nhất -> các câu xếp hàng lần lượt, tránh bắn dồn dập gây 429 (quota/rate limit).
     private final ExecutorService backgroundExecutor = Executors.newSingleThreadExecutor();
 
-    // Chống gửi trùng cùng một câu lên Gemini khi nhiều request nền dồn tới.
-    private final java.util.Set<String> inFlightGemini =
+    // Chống gửi trùng cùng một câu lên Groq khi nhiều request nền dồn tới.
+    private final java.util.Set<String> inFlightGroq =
             java.util.Collections.synchronizedSet(new java.util.HashSet<>());
 
-    // Rate-limit toàn cục: đảm bảo cách nhau tối thiểu giữa 2 lần gọi Gemini để không vượt hạn mức.
+    // Rate-limit toàn cục: đảm bảo cách nhau tối thiểu giữa 2 lần gọi Groq nền.
     private static final long MIN_GAP_MS = 1500;
-    private volatile long lastGeminiCallAt = 0;
-
-    @org.springframework.beans.factory.annotation.Value("${gemini.api-key}")
-    private String geminiApiKey;
-
-    @org.springframework.beans.factory.annotation.Value("${anthropic.api-key:}")
-    private String anthropicApiKey;
-
-    @org.springframework.beans.factory.annotation.Value("${anthropic.model:claude-3-5-haiku-20241022}")
-    private String anthropicModel;
+    private volatile long lastGroqCallAt = 0;
 
     @org.springframework.beans.factory.annotation.Value("${groq.api-key:}")
     private String groqApiKey;
@@ -85,7 +76,7 @@ public class AiProcessingService {
         }
     }
 
-    // Cache kết quả segmentation theo câu đã chuẩn hóa -> tránh gọi lại Gemini cho câu lặp,
+    // Cache kết quả segmentation theo câu đã chuẩn hóa -> tránh gọi lại Groq cho câu lặp,
     // giúp phản hồi gần như tức thì. Giới hạn kích thước để không phình bộ nhớ.
     private final java.util.Map<String, List<String>> segmentCache =
             java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>() {
@@ -321,7 +312,7 @@ public class AiProcessingService {
 
     /**
      * Tách một câu tiếng Việt thành danh sách các đơn vị ký hiệu có nghĩa.
-     * Ưu tiên Gemini AI; nếu không có key / lỗi / rỗng thì rơi về bộ tách rule-based.
+     * Ưu tiên Groq; nếu không có key / lỗi / rỗng thì rơi về bộ tách rule-based.
      * Trả về danh sách chuỗi (giữ nguyên chữ hoa của từ viết tắt).
      */
     public List<String> segmentText(List<String> words, String text) {
@@ -363,9 +354,9 @@ public class AiProcessingService {
             List<String> g = persisted.get().getGlosses();
             segmentCache.put(key, g); // nạp lên RAM cho lần sau
             log.info("Segment cache HIT (Mongo, source={}) for: '{}'", persisted.get().getSource(), text);
-            // Nếu cache đang là rule-based, thử nâng cấp lên Gemini ở nền.
+            // Nếu cache đang là rule-based, thử nâng cấp bằng Groq ở nền.
             if ("rule".equals(persisted.get().getSource())) {
-                triggerBackgroundGeminiUpgrade(key, text);
+                triggerBackgroundGroqUpgrade(key, text);
             }
             return g;
         }
@@ -377,7 +368,7 @@ public class AiProcessingService {
             log.info("Segment MISS -> gọi Groq đồng bộ cho: '{}'", filteredText);
             List<String> aiGlosses = translateTextToGloss(filteredText);
             if (aiGlosses != null && !aiGlosses.isEmpty()) {
-                saveCache(key, aiGlosses, "gemini");
+                saveCache(key, aiGlosses, "groq");
                 segmentCache.put(key, aiGlosses);
                 return aiGlosses;
             }
@@ -389,7 +380,7 @@ public class AiProcessingService {
         List<String> ruleBased = ruleBasedSegment(filteredText);
         saveCache(key, ruleBased, "rule");
         segmentCache.put(key, ruleBased);
-        triggerBackgroundGeminiUpgrade(key, filteredText);
+        triggerBackgroundGroqUpgrade(key, filteredText);
         return ruleBased;
     }
 
@@ -488,11 +479,10 @@ public class AiProcessingService {
     }
 
     /**
-     * Chạy Gemini ở NỀN cho câu chưa có bản chất lượng cao. Kết quả ghi đè cache
-     * (source="gemini"). Người dùng hiện tại không phải chờ; lần sau gặp lại câu này
-     * sẽ được trả bản Gemini tức thì.
+     * Chạy Groq ở nền cho câu đang có cache rule-based. Người dùng hiện tại không
+     * phải chờ; lần sau gặp lại câu này sẽ nhận kết quả Groq từ cache.
      */
-    private void triggerBackgroundGeminiUpgrade(String key, String originalText) {
+    private void triggerBackgroundGroqUpgrade(String key, String originalText) {
         if (!groqConfigured()) {
             return; // không có key thì khỏi thử
         }
@@ -502,28 +492,28 @@ public class AiProcessingService {
         if (filteredText.trim().split("\\s+").length < 2) {
             return;
         }
-        if (!inFlightGemini.add(key)) {
+        if (!inFlightGroq.add(key)) {
             return; // đã có một tác vụ nền cho câu này
         }
         backgroundExecutor.submit(() -> {
             try {
-                // Giãn cách tối thiểu giữa 2 lần gọi Gemini để tránh 429.
-                long wait = MIN_GAP_MS - (System.currentTimeMillis() - lastGeminiCallAt);
+                // Giãn cách tối thiểu giữa 2 lần gọi Groq nền để tránh 429.
+                long wait = MIN_GAP_MS - (System.currentTimeMillis() - lastGroqCallAt);
                 if (wait > 0) {
                     try { Thread.sleep(wait); } catch (InterruptedException ignored) {}
                 }
-                lastGeminiCallAt = System.currentTimeMillis();
+                lastGroqCallAt = System.currentTimeMillis();
 
                 List<String> aiGlosses = translateTextToGloss(filteredText);
                 if (aiGlosses != null && !aiGlosses.isEmpty()) {
                     segmentCache.put(key, aiGlosses);
-                    saveCache(key, aiGlosses, "gemini");
-                    log.info("[NỀN] Đã nâng cấp gloss (Gemini) cho: '{}' -> {}", filteredText, aiGlosses);
+                    saveCache(key, aiGlosses, "groq");
+                    log.info("[NỀN] Đã nâng cấp gloss (Groq) cho: '{}' -> {}", filteredText, aiGlosses);
                 }
             } catch (Exception e) {
-                log.warn("[NỀN] Gemini nâng cấp thất bại cho '{}': {}", filteredText, e.getMessage());
+                log.warn("[NỀN] Groq nâng cấp thất bại cho '{}': {}", filteredText, e.getMessage());
             } finally {
-                inFlightGemini.remove(key);
+                inFlightGroq.remove(key);
             }
         });
     }
@@ -645,8 +635,17 @@ public class AiProcessingService {
         return signDataList;
     }
 
+    /**
+     * Resolve existing glosses without calling AI. This is used when a YouTube
+     * video already stores signLanguage text but still needs current CDN URLs.
+     */
+    public List<SignData> resolveSignAnimations(List<String> words) {
+        if (words == null || words.isEmpty()) return List.of();
+        return mapKeywordsToSignData(words);
+    }
+
     // Alias: một số gloss AI trả về không trùng tên file video. Map về slug thật trên Cloudinary.
-    // Khóa alias là slug đã chuẩn hóa (không dấu, chữ thường, nối '-'); giá trị là slug video đích.
+    // Khóa alias giữ dấu tiếng Việt để các từ như "có" và "cô" không va chạm.
     // Nạp từ file CSV (video.slug-aliases-file) lúc khởi động -> thêm/sửa bằng Excel, không build lại,
     // chỉ cần restart. Mỗi dòng = 1 video, gom mọi từ đồng nghĩa: canonical,slug,aliases (ngăn bằng '|').
     private final Map<String, String> slugAliases = new java.util.concurrent.ConcurrentHashMap<>();
@@ -665,7 +664,7 @@ public class AiProcessingService {
      * - slug: PUBLIC ID THẬT trên Cloudinary, giữ NGUYÊN VĂN (ví dụ "nha_oktegb", có hậu tố).
      *         KHÔNG chuẩn hóa cột này vì Cloudinary tự thêm hậu tố ngẫu nhiên (_oktegb...).
      * - aliases: các từ đồng nghĩa, ngăn nhau bằng '|' hoặc ',' (ví dụ "siêng|siêng năng|cần cù").
-     * Alias VÀ canonical được chuẩn hóa qua toSlug() làm KHÓA, map về public id (giá trị) đích.
+     * Alias VÀ canonical được chuẩn hóa qua toAliasKey() làm KHÓA, map về public id đích.
      * Đọc một file CSV duy nhất cạnh backend; tự bỏ BOM nếu Excel chèn.
      */
     public void loadSlugAliases() {
@@ -716,9 +715,19 @@ public class AiProcessingService {
 
     /** Chuẩn hóa 'from' làm khóa rồi map về targetId (public id thật). Bỏ qua nếu khóa rỗng. */
     private void addAlias(String from, String targetId) {
-        String key = toSlug(from);
+        String key = toAliasKey(from);
         if (key.isEmpty()) return;
         slugAliases.put(key, targetId);
+    }
+
+    private String toAliasKey(String input) {
+        if (input == null) return "";
+        return java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFC)
+                .toLowerCase(java.util.Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}\\s-]", " ")
+                .trim()
+                .replaceAll("[\\s-]+", "-")
+                .replaceAll("^-+|-+$", "");
     }
 
     /**
@@ -788,11 +797,11 @@ public class AiProcessingService {
     private String resolveAnimationUrl(String displayWord) {
         String slug = toSlug(displayWord);
 
-        // Ứng viên theo thứ tự ưu tiên: slug gốc, rồi alias (nếu khác).
+        // CSV là nguồn ánh xạ chính; chỉ thử slug gốc nếu alias không tồn tại trên CDN.
         List<String> candidates = new ArrayList<>();
-        if (!slug.isEmpty()) candidates.add(slug);
-        String alias = slugAliases.get(slug);
-        if (alias != null && !alias.equals(slug)) candidates.add(alias);
+        String alias = slugAliases.get(toAliasKey(displayWord));
+        if (alias != null && !alias.isBlank()) candidates.add(alias);
+        if (!slug.isEmpty() && !candidates.contains(slug)) candidates.add(slug);
 
         for (String candidate : candidates) {
             if (videoExists(candidate)) {
@@ -882,7 +891,7 @@ public class AiProcessingService {
         GlossaryTerm saved = glossaryTermRepository.save(toSave);
         // Đồng bộ vào cache để có hiệu lực ngay và xóa bản cache cũ (nếu có) cho cùng khóa.
         segmentCache.put(key, glosses);
-        saveCache(key, glosses, "gemini"); // đánh dấu chất lượng cao để không bị Gemini nền ghi đè
+        saveCache(key, glosses, "manual");
         log.info("Glossary upsert: '{}' -> {}", key, glosses);
         return saved;
     }
@@ -942,7 +951,7 @@ public class AiProcessingService {
         return hasLetter;
     }
 
-    /** Bóc markdown fence ```json ... ``` hoặc ``` ... ``` quanh JSON nếu Gemini trả kèm. */
+    /** Bóc markdown fence ```json ... ``` hoặc ``` ... ``` quanh JSON nếu Groq trả kèm. */
     private String stripMarkdownFence(String s) {
         if (s == null) return null;
         String t = s.trim();
@@ -958,7 +967,7 @@ public class AiProcessingService {
         return t.trim();
     }
 
-    // Cụm từ ghép có nghĩa dùng cho bộ tách rule-based (fallback khi không có Gemini).
+    // Cụm từ ghép có nghĩa dùng cho bộ tách rule-based (fallback khi không có Groq).
     private static final List<String> COMPOUND_WORDS = Arrays.asList(
             "trí tuệ nhân tạo", "cuộc sống hiện đại", "khoa học công nghệ", "công nghệ thông tin",
             "mạng xã hội", "học máy", "dữ liệu lớn", "xử lý ngôn ngữ",
@@ -975,7 +984,7 @@ public class AiProcessingService {
 
     /**
      * Bộ tách rule-based (không cần AI): greedy match cụm từ ghép trước, rồi các từ đơn,
-     * lọc stopword, giữ nguyên từ viết tắt. Kết quả xấp xỉ Gemini cho câu đơn giản.
+     * lọc stopword, giữ nguyên từ viết tắt. Kết quả xấp xỉ Groq cho câu đơn giản.
      */
     public List<String> ruleBasedSegment(String text) {
         List<String> result = new ArrayList<>();

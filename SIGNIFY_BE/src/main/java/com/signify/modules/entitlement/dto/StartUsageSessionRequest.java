@@ -11,4 +11,8 @@ import lombok.experimental.FieldDefaults;
 public class StartUsageSessionRequest {
     String source;
     String videoId;
+    String videoTitle;
+    String videoUrl;
+    String channelName;
+    Long videoDurationSeconds;
 }

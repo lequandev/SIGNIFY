@@ -24,6 +24,11 @@ public class UsageSession {
     @Indexed
     String userId;
 
+    @Indexed
+    String schoolId;
+
+    String roleAtView;
+
     LocalDateTime startedAt;
 
     LocalDateTime lastHeartbeatAt;
@@ -37,6 +42,20 @@ public class UsageSession {
     String source; // EXTENSION, WEB, API
 
     String videoId;
+
+    String videoTitle;
+
+    String videoUrl;
+
+    String channelName;
+
+    Long videoDurationSeconds;
+
+    Long lastPositionSeconds;
+
+    Long lastSequence;
+
+    Long historyRecordedSeconds;
 
     @CreatedDate
     LocalDateTime createdAt;

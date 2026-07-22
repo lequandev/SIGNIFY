@@ -17,9 +17,15 @@ public class EntitlementResponse {
     String packageName;
     Boolean fullFeatures;
     Boolean unlimited;
+    String usageScope;
     Integer dailyUsageLimitMinutes;
     Integer usedMinutesToday;
     Integer remainingMinutesToday;
+    LocalDateTime dailyUsageResetsAt;
+    Integer monthlyAiLimitMinutes;
+    Integer usedAiMinutesThisPeriod;
+    Integer remainingAiMinutesThisPeriod;
+    LocalDateTime aiUsagePeriodEndsAt;
     LocalDateTime expiresAt;
     String organizationName;
 }

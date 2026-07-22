@@ -7,15 +7,36 @@ import { getServicePackages, ServicePackage as ServicePackageType } from '../ser
 import api from '../services/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
+import type { RootState } from '../store/store';
+
+interface ActiveSubscription {
+  packageId: string;
+}
+
+const toOrganizationCopy = (text: string) => text
+  .replace(/giáo viên, học sinh và lớp học/gi, 'quản trị viên, thành viên và nhóm')
+  .replace(/giáo viên tạo lớp, thêm học sinh và giao video học tập/gi, 'Quản trị viên tạo nhóm, thêm thành viên và phân phối nội dung')
+  .replace(/theo dõi tiến độ và đánh giá kết quả học tập của từng học sinh/gi, 'Theo dõi tiến độ và đánh giá hoạt động của từng thành viên')
+  .replace(/giáo viên và học sinh/gi, 'quản trị viên và thành viên')
+  .replace(/lớp, bài tập và tiến độ học tập/gi, 'nhóm, nội dung và tiến độ hoạt động')
+  .replace(/lớp và bài học/gi, 'nhóm và nội dung')
+  .replace(/chọn giáo dục/gi, 'Chọn gói Tổ chức')
+  .replace(/giải pháp giáo dục/gi, 'Giải pháp cho tổ chức')
+  .replace(/trường học chọn/gi, 'Tổ chức chọn')
+  .replace(/School Admin/g, 'Organization Admin')
+  .replace(/toàn trường/gi, 'toàn tổ chức')
+  .replace(/trường học/gi, 'tổ chức')
+  .replace(/một trường/gi, 'một tổ chức')
+  .replace(/giáo dục/gi, 'Tổ chức');
 
 const ServicePackage: React.FC = () => {
   const [planType, setPlanType] = useState<'individual' | 'education'>('individual');
   const [packages, setPackages] = useState<ServicePackageType[]>([]);
-  const [activeSubscription, setActiveSubscription] = useState<any>(null);
+  const [activeSubscription, setActiveSubscription] = useState<ActiveSubscription | null>(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const location = useLocation();
-  const { isAuthenticated } = useSelector((state: any) => state.auth);
+  const { isAuthenticated } = useSelector((state: RootState) => state.auth);
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0 });
@@ -66,16 +87,18 @@ const ServicePackage: React.FC = () => {
         id: 'fallback-personal-30',
         planType: 'individual',
         name: 'Gói Cá nhân - 1 tháng',
-        description: 'Truy cập đầy đủ Signify trong 1 tháng với thời gian sử dụng không giới hạn mỗi ngày.',
+        description: 'Truy cập đầy đủ Signify trong 1 tháng với 800 phút AI mỗi tháng.',
         price: '49,000',
         duration: 'tháng',
         durationDays: 30,
         buttonText: 'Chọn gói 1 tháng',
         isRecommended: false,
         badge: null,
+        monthlyAiMinutes: 800,
         fullFeatures: true,
         features: [
-          { icon: 'Zap', text: 'Sử dụng không giới hạn thời gian mỗi ngày' },
+          { icon: 'Zap', text: '800 phút AI mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 200 phút AI với giá 29.000đ khi hết quota' },
           { icon: 'Cpu', text: 'Truy cập đầy đủ các tính năng của Signify' },
           { icon: 'Sparkles', text: 'Nhận các cập nhật tính năng mới trong thời gian gói còn hiệu lực' },
         ],
@@ -91,9 +114,11 @@ const ServicePackage: React.FC = () => {
         buttonText: 'Chọn gói 6 tháng',
         isRecommended: true,
         badge: 'Tiết kiệm',
+        monthlyAiMinutes: 800,
         fullFeatures: true,
         features: [
-          { icon: 'Zap', text: 'Sử dụng không giới hạn thời gian mỗi ngày' },
+          { icon: 'Zap', text: '800 phút AI mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 200 phút AI với giá 29.000đ khi hết quota' },
           { icon: 'Cpu', text: 'Truy cập đầy đủ các tính năng của Signify' },
           { icon: 'Sparkles', text: 'Nhận các cập nhật tính năng mới trong thời gian gói còn hiệu lực' },
         ],
@@ -109,9 +134,11 @@ const ServicePackage: React.FC = () => {
         buttonText: 'Chọn gói 12 tháng',
         isRecommended: false,
         badge: 'Tốt nhất',
+        monthlyAiMinutes: 800,
         fullFeatures: true,
         features: [
-          { icon: 'Zap', text: 'Sử dụng không giới hạn thời gian mỗi ngày' },
+          { icon: 'Zap', text: '800 phút AI mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 200 phút AI với giá 29.000đ khi hết quota' },
           { icon: 'Cpu', text: 'Truy cập đầy đủ các tính năng của Signify' },
           { icon: 'Sparkles', text: 'Nhận các cập nhật tính năng mới trong thời gian gói còn hiệu lực' },
         ],
@@ -121,57 +148,63 @@ const ServicePackage: React.FC = () => {
       {
         id: 'fallback-education-30',
         planType: 'education',
-        name: 'Gói Giáo dục - 1 tháng',
-        description: 'Quản lý giáo viên, học sinh và lớp học trong một trường.',
+        name: 'Gói Tổ chức - 1 tháng',
+        description: 'Quản lý thành viên, nhóm và nội dung trong một tổ chức.',
         price: '500,000',
         duration: 'tháng',
         durationDays: 30,
-        buttonText: 'Chọn Giáo dục 1 tháng',
+        buttonText: 'Chọn gói Tổ chức 1 tháng',
         isRecommended: false,
         badge: null,
-        maxAccounts: 20,
+        monthlyAiMinutes: 10000,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
-          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
+          { icon: 'Zap', text: '10.000 phút AI dùng chung mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 1.000 phút AI với giá 399.000đ khi hết quota' },
+          { icon: 'Users', text: 'Không giới hạn tài khoản quản trị viên và thành viên' },
+          { icon: 'Shield', text: '01 tài khoản Organization Admin quản lý toàn tổ chức' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
       {
         id: 'fallback-education-180',
         planType: 'education',
-        name: 'Gói Giáo dục - 6 tháng',
-        description: 'Giải pháp giáo dục 6 tháng cho trường học quản lý lớp và bài học tập trung.',
+        name: 'Gói Tổ chức - 6 tháng',
+        description: 'Giải pháp 6 tháng giúp tổ chức quản lý thành viên, nhóm và nội dung tập trung.',
         price: '2,799,000',
         duration: '6 tháng',
         durationDays: 180,
-        buttonText: 'Chọn Giáo dục 6 tháng',
+        buttonText: 'Chọn gói Tổ chức 6 tháng',
         isRecommended: true,
-        badge: 'Trường học chọn',
-        maxAccounts: 20,
+        badge: 'Tổ chức chọn',
+        monthlyAiMinutes: 10000,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
-          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
+          { icon: 'Zap', text: '10.000 phút AI dùng chung mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 1.000 phút AI với giá 399.000đ khi hết quota' },
+          { icon: 'Users', text: 'Không giới hạn tài khoản quản trị viên và thành viên' },
+          { icon: 'Shield', text: '01 tài khoản Organization Admin quản lý toàn tổ chức' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
       {
         id: 'fallback-education-365',
         planType: 'education',
-        name: 'Gói Giáo dục - 12 tháng',
-        description: 'Giải pháp dài hạn cho trường học với lớp, bài tập và tiến độ học tập.',
+        name: 'Gói Tổ chức - 12 tháng',
+        description: 'Giải pháp dài hạn cho tổ chức với công cụ quản lý thành viên, nội dung và tiến độ hoạt động.',
         price: '5,500,000',
         duration: '12 tháng',
         durationDays: 365,
-        buttonText: 'Chọn Giáo dục 12 tháng',
+        buttonText: 'Chọn gói Tổ chức 12 tháng',
         isRecommended: false,
         badge: 'Dài hạn',
-        maxAccounts: 20,
+        monthlyAiMinutes: 10000,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
-          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
+          { icon: 'Zap', text: '10.000 phút AI dùng chung mỗi tháng' },
+          { icon: 'Plus', text: 'Mua thêm 1.000 phút AI với giá 399.000đ khi hết quota' },
+          { icon: 'Users', text: 'Không giới hạn tài khoản quản trị viên và thành viên' },
+          { icon: 'Shield', text: '01 tài khoản Organization Admin quản lý toàn tổ chức' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
@@ -183,20 +216,34 @@ const ServicePackage: React.FC = () => {
     const matched = packages.find(pkg =>
       pkg.planType === planType &&
       pkg.durationDays === durationDays &&
-      pkg.name?.toLowerCase().includes(planType === 'individual' ? 'cá nhân' : 'giáo dục')
+      (planType === 'individual' ? ['cá nhân'] : ['giáo dục', 'tổ chức'])
+        .some(keyword => pkg.name?.toLowerCase().includes(keyword))
     ) || packages.find(pkg =>
       pkg.planType === planType &&
       pkg.durationDays === durationDays
     );
 
     const fallback = fallbackPackages[planType].find(pkg => pkg.durationDays === durationDays)!;
-    return matched ? { ...fallback, ...matched, features: Array.isArray(matched.features) ? matched.features : fallback.features } : fallback;
+    const merged = matched
+      ? { ...fallback, ...matched, features: Array.isArray(matched.features) ? matched.features : fallback.features }
+      : fallback;
+
+    if (planType !== 'education') return merged;
+
+    return {
+      ...merged,
+      name: toOrganizationCopy(merged.name),
+      description: toOrganizationCopy(merged.description),
+      buttonText: toOrganizationCopy(merged.buttonText),
+      badge: merged.badge ? toOrganizationCopy(merged.badge) : merged.badge,
+      features: merged.features.map(feature => ({ ...feature, text: toOrganizationCopy(feature.text) })),
+    };
   });
 
-  const planTitle = planType === 'individual' ? 'Gói Cá nhân' : 'Gói Giáo dục';
+  const planTitle = planType === 'individual' ? 'Gói Cá nhân' : 'Gói Tổ chức';
   const planDescription = planType === 'individual'
     ? 'Lựa chọn phù hợp cho người dùng cá nhân muốn sử dụng đầy đủ Signify theo từng chu kỳ.'
-    : 'Giải pháp cho trường học quản lý giáo viên, học sinh, lớp và video bài học.';
+    : 'Giải pháp giúp tổ chức quản lý thành viên, nhóm và nội dung trên một không gian chung.';
 
   return (
     <div className="bg-background text-on-surface font-sans min-h-screen flex flex-col selection:bg-primary/20 selection:text-primary">
@@ -232,7 +279,7 @@ const ServicePackage: React.FC = () => {
                 className={`inline-flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${planType === 'education' ? 'bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/30' : 'bg-surface-container-lowest border border-outline-variant/60 text-on-surface-variant hover:text-primary hover:border-primary/40 hover:-translate-y-0.5'}`}
               >
                 <Building2 className="w-4 h-4" />
-                Giáo dục
+                Tổ chức
               </button>
             </div>
           </motion.div>
@@ -245,14 +292,14 @@ const ServicePackage: React.FC = () => {
             <p className="text-sm text-on-surface-variant font-medium mt-2">
               {planType === 'individual'
                 ? 'Chọn chu kỳ thanh toán phù hợp với nhu cầu cá nhân.'
-                : 'Chọn chu kỳ thanh toán phù hợp với quy mô trường học.'}
+                : 'Chọn chu kỳ thanh toán phù hợp với quy mô tổ chức.'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 relative">
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-primary-container/10 blur-[80px] rounded-full pointer-events-none -z-10" />
 
-            {visiblePackages.map((pkg: any, idx: number) => {
+            {visiblePackages.map((pkg, idx) => {
               const isActive = activeSubscription?.packageId === pkg.id;
               const isRecommended = pkg.isRecommended || idx === 1;
 
@@ -286,7 +333,7 @@ const ServicePackage: React.FC = () => {
                   </div>
 
                   <ul className="space-y-4 mb-8 flex-grow">
-                    {pkg.features?.map((f: any, i: number) => (
+                    {pkg.features?.map((f, i) => (
                       <motion.li
                         key={i}
                         initial={{ opacity: 0, x: -10 }}
@@ -320,7 +367,7 @@ const ServicePackage: React.FC = () => {
         <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-10 mb-20">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-extrabold mb-4 tracking-tight">So sánh tính năng</h2>
-            <p className="text-on-surface-variant text-base font-medium">Khám phá chi tiết quyền lợi giữa gói Cá nhân và gói Giáo dục.</p>
+            <p className="text-on-surface-variant text-base font-medium">Khám phá chi tiết quyền lợi giữa gói Cá nhân và gói Tổ chức.</p>
           </div>
           <div className="overflow-hidden rounded-[24px] border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
             <div className="overflow-x-auto">
@@ -329,14 +376,14 @@ const ServicePackage: React.FC = () => {
                   <tr>
                     <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase">Tính năng</th>
                     <th className="p-5 text-xs font-bold text-primary tracking-wider uppercase text-center bg-primary/5 w-1/3">Gói Cá nhân</th>
-                    <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase text-center w-1/3">Giáo dục</th>
+                    <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase text-center w-1/3">Tổ chức</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40">
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
-                    <td className="p-5 text-sm font-medium">Thời gian sử dụng mỗi ngày</td>
-                    <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">Không giới hạn</td>
-                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Không giới hạn</td>
+                    <td className="p-5 text-sm font-medium">Xử lý video mới bằng AI</td>
+                    <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">800 phút mỗi tháng</td>
+                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">10.000 phút mỗi tháng</td>
                   </tr>
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Truy cập tính năng Signify</td>
@@ -346,12 +393,17 @@ const ServicePackage: React.FC = () => {
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Số tài khoản</td>
                     <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">01 tài khoản</td>
-                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Tối đa 20 tài khoản</td>
+                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Không giới hạn</td>
                   </tr>
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Quản lý thành viên</td>
                     <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">Không</td>
-                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Có School Admin</td>
+                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Có Organization Admin</td>
+                  </tr>
+                  <tr className="hover:bg-surface-container-low/50 transition-colors">
+                    <td className="p-5 text-sm font-medium">Mua thêm AI Usage khi hết quota</td>
+                    <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">200 phút / 29.000đ</td>
+                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">1.000 phút / 399.000đ</td>
                   </tr>
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Cập nhật tính năng mới</td>
@@ -375,7 +427,7 @@ const ServicePackage: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button onClick={() => setPlanType('individual')} className="bg-surface-bright text-primary text-sm font-bold px-8 py-3.5 rounded-xl shadow-xl hover:bg-surface-container-highest transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Cá nhân</button>
-                <button onClick={() => setPlanType('education')} className="border border-on-primary/30 text-on-primary text-sm font-bold px-8 py-3.5 rounded-xl hover:bg-on-primary/10 transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Giáo dục</button>
+                <button onClick={() => setPlanType('education')} className="border border-on-primary/30 text-on-primary text-sm font-bold px-8 py-3.5 rounded-xl hover:bg-on-primary/10 transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Tổ chức</button>
               </div>
             </div>
           </div>

@@ -1,18 +1,11 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { Menu } from 'lucide-react';
 import AdminSidebar from './AdminSidebar';
 
 const AdminLayout = () => {
-  const { isAuthenticated, user } = useSelector((state: any) => state.auth);
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [isMobileOpen, setIsMobileOpen] = React.useState(false);
-
-  // Check if user is Admin
-  if (!isAuthenticated || user?.role !== 'ADMIN') {
-    // return <Navigate to="/login" replace />;
-  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC]">

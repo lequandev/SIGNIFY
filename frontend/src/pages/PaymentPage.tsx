@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AlertCircle, ArrowLeft, Building2, Check, Clock, Copy, CreditCard, Loader2, Lock, QrCode, Shield, X } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
+import axios from 'axios';
 import api from '../services/api';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
@@ -19,6 +20,19 @@ const formatTime = (seconds: number) => {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
+interface PaymentLinkData {
+  orderCode: number;
+  accountName: string;
+  accountNumber: string;
+  amount: number;
+  description: string;
+  qrCode: string;
+}
+
+interface ApiErrorResponse {
+  message?: string;
+}
+
 const PaymentPage: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -31,12 +45,17 @@ const PaymentPage: React.FC = () => {
   }, [location.pathname]);
 
   const [loading, setLoading] = useState(false);
-  const [paymentData, setPaymentData] = useState<any>(null);
+  const [paymentData, setPaymentData] = useState<PaymentLinkData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(600);
   const [status, setStatus] = useState<'success' | 'error' | 'cancel' | null>(routeStatus);
   const [schoolName, setSchoolName] = useState('');
+  const isOrganizationAiUsageTopUp = selectedPlan?.purchaseType === 'AI_USAGE_TOP_UP';
+  const isPersonalAiUsageTopUp = selectedPlan?.purchaseType === 'PERSONAL_AI_USAGE_TOP_UP';
+  const isAiUsageTopUp = isOrganizationAiUsageTopUp || isPersonalAiUsageTopUp;
+  const topUpMinutes = Number(selectedPlan?.topUpMinutes || (isPersonalAiUsageTopUp ? 200 : 1000));
+  const topUpReturnPath = isPersonalAiUsageTopUp ? '/profile' : '/school';
   const isEducationPlan = selectedPlan?.planType === 'education';
   const [paymentRequested, setPaymentRequested] = useState(false);
   const createPaymentStartedRef = useRef(false);
@@ -62,18 +81,24 @@ const PaymentPage: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        const response = await api.post('/payments/create-link', {
-          packageId: selectedPlan.id || selectedPlan._id,
-          name: isEducationPlan ? schoolName.trim() : selectedPlan.name,
-        });
+        const response = isAiUsageTopUp
+          ? await api.post(isPersonalAiUsageTopUp
+              ? '/payments/personal-ai-usage-top-up/create-link'
+              : '/payments/ai-usage-top-up/create-link')
+          : await api.post('/payments/create-link', {
+              packageId: selectedPlan.id || selectedPlan._id,
+              name: isEducationPlan ? schoolName.trim() : selectedPlan.name,
+            });
         setPaymentData(response.data);
         setTimeLeft(600);
-      } catch (err: any) {
-        const message = err?.response?.data?.message || err?.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.';
+      } catch (err: unknown) {
+        const message = axios.isAxiosError<ApiErrorResponse>(err)
+          ? err.response?.data?.message || err.message || 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.'
+          : err instanceof Error ? err.message : 'Không thể tạo liên kết thanh toán. Vui lòng thử lại.';
         setError(message);
         setPaymentRequested(false);
         createPaymentStartedRef.current = false;
-        if (err?.response?.status === 401) {
+        if (axios.isAxiosError(err) && err.response?.status === 401) {
           navigate('/login', { state: { from: location } });
         }
       } finally {
@@ -82,7 +107,7 @@ const PaymentPage: React.FC = () => {
     };
 
     createPayment();
-  }, [selectedPlan, routeStatus, paymentData, loading, navigate, location, isEducationPlan, paymentRequested, canCreatePayment, schoolName]);
+  }, [selectedPlan, routeStatus, paymentData, loading, navigate, location, isEducationPlan, isAiUsageTopUp, isPersonalAiUsageTopUp, paymentRequested, canCreatePayment, schoolName]);
 
   useEffect(() => {
     if (!paymentData || status || timeLeft <= 0) return;
@@ -126,15 +151,17 @@ const PaymentPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'success') {
-      const targetPath = selectedPlan?.planType === 'education' ? '/school' : '/profile';
+      const targetPath = isAiUsageTopUp
+        ? topUpReturnPath
+        : selectedPlan?.planType === 'education' ? '/school' : '/profile';
       const timer = window.setTimeout(() => navigate(targetPath), 4000);
       return () => window.clearTimeout(timer);
     }
     if (status === 'cancel' || status === 'error') {
-      const timer = window.setTimeout(() => navigate('/packages'), 4000);
+      const timer = window.setTimeout(() => navigate(isAiUsageTopUp ? topUpReturnPath : '/packages'), 4000);
       return () => window.clearTimeout(timer);
     }
-  }, [status, navigate, selectedPlan]);
+  }, [status, navigate, selectedPlan, isAiUsageTopUp, topUpReturnPath]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -180,11 +207,11 @@ const PaymentPage: React.FC = () => {
       <main className="pt-28 flex-grow">
         <div className="max-w-[1200px] mx-auto px-6 py-10">
           <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Link to="/packages" className="inline-flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors w-fit">
+            <Link to={isAiUsageTopUp ? topUpReturnPath : '/packages'} className="inline-flex items-center gap-2 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors w-fit">
               <span className="w-9 h-9 rounded-xl bg-surface-container-lowest border border-outline-variant/60 flex items-center justify-center shadow-sm">
                 <ArrowLeft className="w-4 h-4" />
               </span>
-              Quay lại gói dịch vụ
+              {isAiUsageTopUp ? 'Quay lại AI Usage' : 'Quay lại gói dịch vụ'}
             </Link>
             <div className="inline-flex items-center gap-2 rounded-full bg-surface-container-lowest border border-outline-variant/60 px-4 py-2 text-xs font-bold text-on-surface-variant shadow-sm w-fit">
               <Lock className="w-4 h-4 text-primary" />
@@ -207,8 +234,8 @@ const PaymentPage: React.FC = () => {
                 </div>
 
                 <div className="flex-grow text-center lg:text-left">
-                  <h1 className="text-2xl md:text-3xl font-extrabold mb-2 tracking-tight">Hoàn tất thanh toán gói dịch vụ</h1>
-                  <p className="text-white/80 text-sm mb-3">Quét mã QR PayOS và giữ nguyên nội dung chuyển khoản để hệ thống tự động kích hoạt gói.</p>
+                  <h1 className="text-2xl md:text-3xl font-extrabold mb-2 tracking-tight">{isAiUsageTopUp ? 'Hoàn tất mua thêm phút AI' : 'Hoàn tất thanh toán gói dịch vụ'}</h1>
+                  <p className="text-white/80 text-sm mb-3">{isAiUsageTopUp ? `Sau khi PayOS xác nhận thanh toán, ${topUpMinutes.toLocaleString('vi-VN')} phút AI sẽ được cộng vào chu kỳ hiện tại.` : 'Quét mã QR PayOS và giữ nguyên nội dung chuyển khoản để hệ thống tự động kích hoạt gói.'}</p>
                   <div className="flex flex-wrap gap-2 justify-center lg:justify-start">
                     <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold backdrop-blur">
                       <Shield className="w-3 h-3" />
@@ -236,7 +263,7 @@ const PaymentPage: React.FC = () => {
               <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant mb-2">
                   <CreditCard className="w-4 h-4 text-primary" />
-                  Gói đã chọn
+                  {isAiUsageTopUp ? 'Sản phẩm' : 'Gói đã chọn'}
                 </div>
                 <p className="text-base font-bold text-on-surface">{selectedPlan?.name || 'Gói Signify'}</p>
               </div>
@@ -254,7 +281,7 @@ const PaymentPage: React.FC = () => {
                   <Building2 className="w-4 h-4 text-primary" />
                   Loại gói
                 </div>
-                <p className="text-base font-bold text-on-surface">{isEducationPlan ? 'Giáo dục' : 'Cá nhân'}</p>
+                <p className="text-base font-bold text-on-surface">{isAiUsageTopUp ? 'Mua thêm AI Usage' : isEducationPlan ? 'Tổ chức' : 'Cá nhân'}</p>
               </div>
             </div>
           </motion.section>
@@ -392,7 +419,7 @@ const PaymentPage: React.FC = () => {
                       </div>
                       <h2 className="text-2xl font-black tracking-tight mb-2">Sẵn sàng tạo mã QR</h2>
                       <p className="text-sm font-medium text-on-surface-variant leading-relaxed mb-6">
-                        Bấm nút bên dưới để tạo giao dịch PayOS cho gói đã chọn.
+                        {isAiUsageTopUp ? `Bấm nút bên dưới để tạo giao dịch mua thêm ${topUpMinutes.toLocaleString('vi-VN')} phút AI.` : 'Bấm nút bên dưới để tạo giao dịch PayOS cho gói đã chọn.'}
                       </p>
                       <button
                         onClick={handleStartPayment}
@@ -415,7 +442,7 @@ const PaymentPage: React.FC = () => {
               <div className="bg-surface-container p-6 border-b border-outline-variant/50">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-primary mb-2">Chi tiết đơn hàng</p>
                 <h2 className="text-xl font-black tracking-tight text-on-surface">{selectedPlan?.name || 'Gói Signify'}</h2>
-                <p className="text-sm font-semibold text-on-surface-variant mt-1">Thanh toán theo {selectedPlan?.duration || 'gói'}</p>
+                <p className="text-sm font-semibold text-on-surface-variant mt-1">{isAiUsageTopUp ? 'Cộng vào quota của chu kỳ hiện tại' : `Thanh toán theo ${selectedPlan?.duration || 'gói'}`}</p>
               </div>
 
               <div className="p-6 space-y-5">
@@ -453,10 +480,17 @@ const PaymentPage: React.FC = () => {
                   </div>
                 )}
 
+                {isAiUsageTopUp && (
+                  <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 flex items-start gap-3">
+                    <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                    <div><p className="text-xs font-black uppercase tracking-[0.16em] text-primary mb-1">Hiệu lực</p><p className="text-sm font-bold text-on-surface">{topUpMinutes.toLocaleString('vi-VN')} phút được dùng đến hết chu kỳ quota hiện tại.</p></div>
+                  </div>
+                )}
+
                 <div className="space-y-3 pt-5 border-t border-outline-variant/50">
                   <div className="flex items-start gap-3 text-sm font-semibold text-on-surface-variant">
                     <Check className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                    Kích hoạt tự động sau khi thanh toán thành công.
+                    {isAiUsageTopUp ? 'Cộng phút tự động sau khi thanh toán thành công.' : 'Kích hoạt tự động sau khi thanh toán thành công.'}
                   </div>
                   <div className="flex items-start gap-3 text-sm font-semibold text-on-surface-variant">
                     <CreditCard className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -503,7 +537,7 @@ const PaymentPage: React.FC = () => {
               </h2>
               <p className="text-sm font-medium text-on-surface-variant leading-relaxed mb-6">
                 {status === 'success'
-                  ? selectedPlan?.planType === 'education' ? 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang trường học.' : 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang hồ sơ.'
+                  ? isAiUsageTopUp ? `Đã cộng ${topUpMinutes.toLocaleString('vi-VN')} phút AI vào quota hiện tại. Hệ thống sẽ chuyển bạn về ${isPersonalAiUsageTopUp ? 'trang hồ sơ' : 'trang quản lý tổ chức'}.` : selectedPlan?.planType === 'education' ? 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang tổ chức.' : 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang hồ sơ.'
                   : status === 'cancel'
                     ? 'Giao dịch đã được hủy. Hệ thống sẽ chuyển bạn về trang gói dịch vụ.'
                     : error || 'Có lỗi xảy ra trong quá trình thanh toán. Hệ thống sẽ chuyển bạn về trang gói dịch vụ.'}

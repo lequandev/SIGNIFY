@@ -1,10 +1,12 @@
 package com.signify.modules.entitlement.controller;
 
 import com.signify.modules.entitlement.dto.EntitlementResponse;
+import com.signify.modules.entitlement.dto.HeartbeatUsageRequest;
 import com.signify.modules.entitlement.dto.StartUsageSessionRequest;
 import com.signify.modules.entitlement.dto.UsageSessionResponse;
 import com.signify.modules.entitlement.service.UsageSessionService;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -41,14 +43,15 @@ public class UsageSessionController {
     }
 
     @PostMapping("/{sessionId}/heartbeat")
-    public ResponseEntity<?> heartbeat(@PathVariable String sessionId) {
+    public ResponseEntity<?> heartbeat(@PathVariable String sessionId,
+                                       @Valid @RequestBody(required = false) HeartbeatUsageRequest request) {
         String userId = getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
         }
 
         try {
-            EntitlementResponse response = usageSessionService.heartbeat(userId, sessionId);
+            EntitlementResponse response = usageSessionService.heartbeat(userId, sessionId, request);
             if (Boolean.FALSE.equals(response.getUnlimited())
                     && response.getRemainingMinutesToday() != null
                     && response.getRemainingMinutesToday() <= 0) {
@@ -65,14 +68,15 @@ public class UsageSessionController {
     }
 
     @PostMapping("/{sessionId}/end")
-    public ResponseEntity<?> endSession(@PathVariable String sessionId) {
+    public ResponseEntity<?> endSession(@PathVariable String sessionId,
+                                        @Valid @RequestBody(required = false) HeartbeatUsageRequest request) {
         String userId = getCurrentUserId();
         if (userId == null) {
             return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
         }
 
         try {
-            EntitlementResponse response = usageSessionService.endSession(userId, sessionId);
+            EntitlementResponse response = usageSessionService.endSession(userId, sessionId, request);
             return ResponseEntity.ok(response);
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));

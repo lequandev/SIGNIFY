@@ -35,6 +35,34 @@ public class PaymentController {
         }
     }
 
+    @PostMapping("/ai-usage-top-up/create-link")
+    public ResponseEntity<?> createAiUsageTopUpPaymentLink() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+
+        try {
+            return ResponseEntity.ok(paymentService.createAiUsageTopUpPaymentLink(authentication.getName()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PostMapping("/personal-ai-usage-top-up/create-link")
+    public ResponseEntity<?> createPersonalAiUsageTopUpPaymentLink() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+            return ResponseEntity.status(401).body(Map.of("message", "Unauthorized"));
+        }
+
+        try {
+            return ResponseEntity.ok(paymentService.createPersonalAiUsageTopUpPaymentLink(authentication.getName()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
+    }
+
     @PostMapping("/webhook")
     public ResponseEntity<ObjectNode> handleWebhook(@RequestBody ObjectNode body) {
         ObjectNode response = paymentService.handleWebhook(body);
