@@ -19,6 +19,9 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
 
+    private static final int DEFAULT_EDUCATION_MONTHLY_AI_MINUTES = 10000;
+    private static final int DEFAULT_PERSONAL_MONTHLY_AI_MINUTES = 800;
+
     private final ServicePackageRepository servicePackageRepository;
     private final MongoTemplate mongoTemplate;
 
@@ -34,10 +37,10 @@ public class DataSeeder implements CommandLineRunner {
         List<ServicePackage> defaults = Arrays.asList(
                 personalPackage(
                         "Gói Cá nhân - 1 tháng",
-                        "49,000",
+                        "5,000",
                         "tháng",
                         30,
-                        "Truy cập đầy đủ Signify trong 1 tháng với thời gian sử dụng không giới hạn mỗi ngày.",
+                        "Truy cập đầy đủ Signify trong 1 tháng với 800 phút AI mỗi tháng.",
                         "Chọn gói 1 tháng",
                         false,
                         null
@@ -64,11 +67,11 @@ public class DataSeeder implements CommandLineRunner {
                 ),
                 educationPackage(
                         "Gói Giáo dục - 1 tháng",
-                        "5,000",
+                        "2,000,000",
                         "tháng",
                         30,
-                        50,
-                        "Giải pháp cho trường học: tối đa 50 tài khoản giáo viên và học sinh trong 1 tháng.",
+                        DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
+                        "Giải pháp cho tổ chức với 10.000 phút AI mỗi tháng và không giới hạn thành viên.",
                         "Chọn Giáo dục 1 tháng",
                         false,
                         null
@@ -78,8 +81,8 @@ public class DataSeeder implements CommandLineRunner {
                         "3,600,000",
                         "6 tháng",
                         180,
-                        100,
-                        "Giải pháp trường học 6 tháng, tối đa 100 tài khoản, quản lý lớp và tiến độ học tập.",
+                        DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
+                        "Giải pháp trường học 6 tháng với quota AI dùng chung, quản lý lớp và tiến độ học tập.",
                         "Chọn Giáo dục 6 tháng",
                         true,
                         "Trường học chọn"
@@ -89,8 +92,8 @@ public class DataSeeder implements CommandLineRunner {
                         "6,900,000",
                         "12 tháng",
                         365,
-                        200,
-                        "Giải pháp dài hạn cho trường học với tối đa 200 tài khoản và đầy đủ tính năng giáo dục.",
+                        DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
+                        "Giải pháp dài hạn với 10.000 phút AI mỗi tháng và đầy đủ tính năng quản lý tổ chức.",
                         "Chọn Giáo dục 12 tháng",
                         false,
                         "Dài hạn"
@@ -98,6 +101,7 @@ public class DataSeeder implements CommandLineRunner {
         );
 
         defaults.forEach(this::upsertDefaultPackage);
+        sanitizeLegacyEducationPackages();
         log.info("Default service packages synced successfully.");
     }
 
@@ -116,7 +120,7 @@ public class DataSeeder implements CommandLineRunner {
         pkg.setDurationDays(desired.getDurationDays());
         pkg.setAiLimitPerDay(desired.getAiLimitPerDay());
         pkg.setDailyUsageMinutes(desired.getDailyUsageMinutes());
-        pkg.setMaxAccounts(desired.getMaxAccounts());
+        pkg.setMonthlyAiMinutes(desired.getMonthlyAiMinutes());
         pkg.setFullFeatures(desired.getFullFeatures());
         pkg.setButtonText(desired.getButtonText());
         pkg.setIsRecommended(desired.getIsRecommended());
@@ -148,13 +152,14 @@ public class DataSeeder implements CommandLineRunner {
                 .description(description)
                 .aiLimitPerDay(null)
                 .dailyUsageMinutes(null)
-                .maxAccounts(null)
+                .monthlyAiMinutes(DEFAULT_PERSONAL_MONTHLY_AI_MINUTES)
                 .fullFeatures(true)
                 .buttonText(buttonText)
                 .isRecommended(isRecommended)
                 .badge(badge)
                 .features(Arrays.asList(
-                        new ServicePackage.Feature("Zap", "Sử dụng không giới hạn thời gian mỗi ngày"),
+                        new ServicePackage.Feature("Zap", "800 phút AI mỗi tháng"),
+                        new ServicePackage.Feature("Plus", "Mua thêm 200 phút AI với giá 29.000đ khi hết quota"),
                         new ServicePackage.Feature("Cpu", "Truy cập đầy đủ các tính năng của Signify"),
                         new ServicePackage.Feature("Sparkles", "Nhận các cập nhật tính năng mới trong thời gian gói còn hiệu lực")
                 ))
@@ -167,7 +172,7 @@ public class DataSeeder implements CommandLineRunner {
             String price,
             String duration,
             Integer durationDays,
-            Integer maxAccounts,
+            Integer monthlyAiMinutes,
             String description,
             String buttonText,
             Boolean isRecommended,
@@ -182,19 +187,76 @@ public class DataSeeder implements CommandLineRunner {
                 .description(description)
                 .aiLimitPerDay(null)
                 .dailyUsageMinutes(null)
-                .maxAccounts(maxAccounts)
+                .monthlyAiMinutes(monthlyAiMinutes)
                 .fullFeatures(true)
                 .buttonText(buttonText)
                 .isRecommended(isRecommended)
                 .badge(badge)
                 .features(Arrays.asList(
-                        new ServicePackage.Feature("GraduationCap", "Tối đa " + maxAccounts + " tài khoản giáo viên và học sinh"),
+                        new ServicePackage.Feature("Cpu", formatMinutes(monthlyAiMinutes) + " phút AI mỗi tháng"),
+                        new ServicePackage.Feature("Plus", "Mua thêm 1.000 phút AI với giá 399.000đ khi hết quota"),
                         new ServicePackage.Feature("Shield", "01 tài khoản School Admin quản lý toàn bộ trường"),
+                        new ServicePackage.Feature("GraduationCap", "Không giới hạn tài khoản giáo viên và học sinh"),
                         new ServicePackage.Feature("Users", "Giáo viên tạo lớp, thêm học sinh và giao video học tập"),
                         new ServicePackage.Feature("LineChart", "Theo dõi tiến độ và đánh giá kết quả học tập của từng học sinh"),
                         new ServicePackage.Feature("Zap", "Toàn bộ thành viên được sử dụng đầy đủ các tính năng của Signify")
                 ))
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+
+    private void sanitizeLegacyEducationPackages() {
+        for (ServicePackage pkg : servicePackageRepository.findAll()) {
+            if (!"education".equalsIgnoreCase(pkg.getPlanType())) continue;
+            boolean changed = false;
+            if (pkg.getMonthlyAiMinutes() == null || pkg.getMonthlyAiMinutes() <= 0) {
+                pkg.setMonthlyAiMinutes(DEFAULT_EDUCATION_MONTHLY_AI_MINUTES);
+                changed = true;
+            }
+
+            if (containsAccountLimit(pkg.getDescription())) {
+                pkg.setDescription("Giải pháp trường học với quota AI dùng chung, không giới hạn thành viên và đầy đủ tính năng quản lý giáo dục.");
+                changed = true;
+            }
+
+            List<ServicePackage.Feature> features = new ArrayList<>();
+            if (pkg.getFeatures() != null) {
+                for (ServicePackage.Feature feature : pkg.getFeatures()) {
+                    if (feature != null && containsAccountLimit(feature.getText())) {
+                        changed = true;
+                        continue;
+                    }
+                    if (feature != null) features.add(feature);
+                }
+            }
+            boolean hasAiUsage = features.stream().anyMatch(feature -> feature.getText() != null
+                    && feature.getText().toLowerCase().contains("phút ai"));
+            boolean hasUnlimitedMembers = features.stream().anyMatch(feature -> feature.getText() != null
+                    && feature.getText().toLowerCase().contains("không giới hạn tài khoản"));
+            if (!hasAiUsage) {
+                features.add(0, new ServicePackage.Feature("Cpu",
+                        formatMinutes(pkg.getMonthlyAiMinutes()) + " phút AI mỗi tháng"));
+                changed = true;
+            }
+            if (!hasUnlimitedMembers) {
+                features.add(new ServicePackage.Feature("GraduationCap",
+                        "Không giới hạn tài khoản giáo viên và học sinh"));
+                changed = true;
+            }
+            if (changed) {
+                pkg.setFeatures(features);
+                servicePackageRepository.save(pkg);
+            }
+        }
+    }
+
+    private boolean containsAccountLimit(String value) {
+        if (value == null) return false;
+        String normalized = value.toLowerCase();
+        return normalized.contains("tối đa") && normalized.contains("tài khoản");
+    }
+
+    private String formatMinutes(Integer minutes) {
+        return String.format("%,d", minutes).replace(',', '.');
     }
 }

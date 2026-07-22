@@ -22,11 +22,17 @@ public class Payment {
 
     String userId;
 
+    String paymentType;
+
     String subscriptionId;
 
     String activatedSubscriptionId;
 
     String organizationName;
+
+    String schoolId;
+
+    Integer topUpMinutes;
 
     BigDecimal amount;
 
@@ -40,4 +46,6 @@ public class Payment {
 
     @CreatedDate
     LocalDateTime paidAt;
+
+    LocalDateTime fulfilledAt;
 }

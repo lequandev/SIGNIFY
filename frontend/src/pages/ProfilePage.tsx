@@ -4,9 +4,6 @@ import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import {
   User as UserIcon,
-  Mail,
-  Phone,
-  MapPin,
   Camera,
   Shield,
   KeyRound,
@@ -14,19 +11,47 @@ import {
   Sparkles,
   Crown,
   Calendar,
-  Clock
+  Clock,
+  Loader2,
+  RefreshCw,
+  ShoppingCart
 } from 'lucide-react';
 import api from '../services/api';
-import { setLogin } from '../store/authSlice';
+import { setLogin, type AuthUser } from '../store/authSlice';
+import type { AppDispatch, RootState } from '../store/store';
 import { useToast } from '../context/ToastContext';
 import { getMyEntitlement, EntitlementData } from '../services/entitlementService';
 import { getMySchool } from '../services/schoolService';
 import WorkspaceTopbar from '../components/WorkspaceTopbar';
 
+type ApiError = { response?: { data?: { message?: string } } };
+
+const getApiErrorMessage = (error: unknown, fallback: string) =>
+  (error as ApiError).response?.data?.message || fallback;
+
+const profileRoleLabel: Record<string, string> = {
+  ADMIN: 'Quản trị hệ thống',
+  SCHOOL_ADMIN: 'Quản trị tổ chức',
+  TEACHER: 'Giáo viên',
+  STUDENT: 'Học sinh',
+  USER: 'Người dùng',
+};
+
+const PERSONAL_AI_USAGE_TOP_UP_PLAN = {
+  id: 'personal-ai-usage-top-up',
+  purchaseType: 'PERSONAL_AI_USAGE_TOP_UP',
+  planType: 'individual',
+  name: 'Mua thêm 200 phút AI',
+  description: 'Bổ sung 200 phút vào quota cá nhân của chu kỳ hiện tại.',
+  price: '29,000',
+  duration: 'chu kỳ hiện tại',
+  topUpMinutes: 200,
+};
+
 const ProfilePage: React.FC = () => {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const { showToast } = useToast();
-  const { user, token } = useSelector((state: any) => state.auth);
+  const { user, token } = useSelector((state: RootState) => state.auth);
 
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
@@ -45,9 +70,12 @@ const ProfilePage: React.FC = () => {
   const [passwordErrors, setPasswordErrors] = useState<Record<string, string>>({});
   const [entitlement, setEntitlement] = useState<EntitlementData | null>(null);
   const [hasActiveSchoolMembership, setHasActiveSchoolMembership] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState(false);
+  const [profileLoadAttempt, setProfileLoadAttempt] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const syncUser = (data: any) => {
+  const syncUser = (data: AuthUser) => {
     const merged = { ...(user || {}), ...data, id: data._id ?? data.id ?? user?.id };
     if (token) dispatch(setLogin({ user: merged, token }));
     return merged;
@@ -58,8 +86,8 @@ const ProfilePage: React.FC = () => {
     (async () => {
       try {
         const [profileData, entitlementData, schoolData] = await Promise.all([
-          api.get('/users/profile').then(res => res.data),
-          getMyEntitlement().catch(() => null),
+          api.get<AuthUser>('/users/profile').then(res => res.data),
+          getMyEntitlement(),
           getMySchool().catch(() => null),
         ]);
         if (ignore) return;
@@ -73,12 +101,14 @@ const ProfilePage: React.FC = () => {
         if (entitlementData) setEntitlement(entitlementData);
         setHasActiveSchoolMembership(Boolean(schoolData && (schoolData.role === 'TEACHER' || schoolData.role === 'SCHOOL_ADMIN')));
       } catch {
-        // Chưa đăng nhập hoặc lỗi mạng
+        if (!ignore) setProfileLoadError(true);
+      } finally {
+        if (!ignore) setProfileLoading(false);
       }
     })();
     return () => { ignore = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profileLoadAttempt]);
 
   const initials = formData.fullName
     ? formData.fullName.split(' ').map((item: string) => item[0]).slice(0, 2).join('').toUpperCase()
@@ -201,9 +231,9 @@ const ProfilePage: React.FC = () => {
       setAvatarPreview(null);
       syncUser(data);
       showToast('Ảnh đại diện đã được cập nhật', 'success');
-    } catch (error: any) {
+    } catch (error: unknown) {
       setAvatarPreview(null);
-      showToast(error?.response?.data?.message || 'Tải ảnh thất bại', 'error');
+      showToast(getApiErrorMessage(error, 'Tải ảnh thất bại'), 'error');
     } finally {
       setUploadingAvatar(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -226,8 +256,8 @@ const ProfilePage: React.FC = () => {
       });
       syncUser(data);
       showToast('Đã lưu thông tin thành công', 'success');
-    } catch (error: any) {
-      showToast(error?.response?.data?.message || 'Lưu thất bại', 'error');
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Lưu thất bại'), 'error');
     } finally {
       setSavingProfile(false);
     }
@@ -249,23 +279,62 @@ const ProfilePage: React.FC = () => {
       setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setPasswordErrors({});
       showToast('Đổi mật khẩu thành công', 'success');
-    } catch (error: any) {
-      showToast(error?.response?.data?.message || 'Đổi mật khẩu thất bại', 'error');
+    } catch (error: unknown) {
+      showToast(getApiErrorMessage(error, 'Đổi mật khẩu thất bại'), 'error');
     } finally {
       setChangingPassword(false);
     }
   };
 
+  if (profileLoading || profileLoadError) {
+    return (
+      <div className="flex min-h-screen flex-col bg-background text-on-surface">
+        <WorkspaceTopbar currentLabel="Hồ sơ cá nhân" />
+        <main className="flex flex-grow items-center justify-center px-6">
+          {profileLoading ? (
+            <Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Đang tải hồ sơ" />
+          ) : (
+            <div className="text-center">
+              <p className="text-sm font-bold">Không thể tải đầy đủ dữ liệu hồ sơ.</p>
+              <button type="button" onClick={() => { setProfileLoading(true); setProfileLoadError(false); setProfileLoadAttempt(current => current + 1); }} className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-bold text-on-primary">
+                <RefreshCw className="h-4 w-4" />Thử lại
+              </button>
+            </div>
+          )}
+        </main>
+      </div>
+    );
+  }
+
   const avatarSrc = avatarPreview || avatarUrl;
-  const dailyLimit = entitlement?.dailyUsageLimitMinutes ?? 20;
+  const dailyLimit = entitlement?.dailyUsageLimitMinutes ?? 0;
   const remainingMinutes = entitlement?.remainingMinutesToday ?? dailyLimit;
   const usedMinutes = entitlement?.usedMinutesToday ?? 0;
-  const usagePercent = entitlement?.unlimited ? 100 : Math.min(100, Math.max(0, (usedMinutes / dailyLimit) * 100));
+  const schoolMonthlyUsage = entitlement?.usageScope === 'SCHOOL_MONTHLY';
+  const personalMonthlyUsage = entitlement?.usageScope === 'USER_MONTHLY';
+  const monthlyUsage = schoolMonthlyUsage || personalMonthlyUsage;
+  const dailyUnlimited = entitlement?.usageScope === 'USER_DAILY' && dailyLimit === 0;
+  const monthlyAiLimit = entitlement?.monthlyAiLimitMinutes ?? 0;
+  const usedAiMinutes = entitlement?.usedAiMinutesThisPeriod ?? 0;
+  const remainingAiMinutes = entitlement?.remainingAiMinutesThisPeriod ?? 0;
+  const usagePercent = monthlyUsage
+    ? Math.min(100, Math.max(0, monthlyAiLimit > 0 ? (usedAiMinutes / monthlyAiLimit) * 100 : 100))
+    : entitlement?.unlimited || dailyLimit === 0
+      ? 100
+      : Math.min(100, Math.max(0, (usedMinutes / dailyLimit) * 100));
+  const aiUsagePeriodEnd = entitlement?.aiUsagePeriodEndsAt
+    ? new Date(entitlement.aiUsagePeriodEndsAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : null;
+  const dailyUsageReset = entitlement?.dailyUsageResetsAt
+    ? new Date(entitlement.dailyUsageResetsAt).toLocaleString('vi-VN', {
+        hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric',
+      })
+    : null;
   const packageExpiresAt = entitlement?.expiresAt
     ? new Date(entitlement.expiresAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
     : null;
   const workspaceLink = user?.role === 'SCHOOL_ADMIN'
-    ? { to: '/school', label: 'Quản lý trường học' }
+    ? { to: '/school', label: 'Quản lý tổ chức' }
     : user?.role === 'TEACHER' && hasActiveSchoolMembership
       ? { to: '/teacher', label: 'Quản lý lớp học' }
       : user?.role === 'STUDENT'
@@ -332,7 +401,7 @@ const ProfilePage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                     <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold backdrop-blur">
                       <Shield className="w-3 h-3" />
-                      {user?.role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng'}
+                      {user?.role ? profileRoleLabel[user.role] || user.role : 'Người dùng'}
                     </div>
                     <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1.5 text-xs font-bold backdrop-blur">
                       <Sparkles className="w-3 h-3" />
@@ -364,7 +433,7 @@ const ProfilePage: React.FC = () => {
                   <p className="text-xs font-semibold text-on-surface-variant mt-1">Hết hạn: {packageExpiresAt}</p>
                 )}
                 {entitlement?.organizationName && (
-                  <p className="text-xs font-semibold text-primary mt-1">Trường học: {entitlement.organizationName}</p>
+                  <p className="text-xs font-semibold text-primary mt-1">Tổ chức: {entitlement.organizationName}</p>
                 )}
                 {workspaceLink && (
                   <Link
@@ -382,17 +451,50 @@ const ProfilePage: React.FC = () => {
                   Quyền truy cập
                 </div>
                 <p className="text-base font-bold text-on-surface">
-                  {entitlement?.unlimited ? 'Không giới hạn' : 'Cơ bản'}
+                  {entitlement?.fullFeatures ? 'Đầy đủ' : 'Cơ bản'}
                 </p>
               </div>
 
               <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4">
                 <div className="flex items-center gap-2 text-xs font-semibold text-on-surface-variant mb-3">
                   <Clock className="w-4 h-4 text-primary" />
-                  Thời gian hôm nay
+                  {schoolMonthlyUsage ? 'AI Usage của tổ chức' : personalMonthlyUsage ? 'AI Usage tháng này' : 'AI Usage hôm nay'}
                 </div>
-                {entitlement?.unlimited ? (
+                {monthlyUsage ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-semibold">
+                      <span className="text-on-surface-variant">{usedAiMinutes.toLocaleString('vi-VN')}/{monthlyAiLimit.toLocaleString('vi-VN')} phút</span>
+                      <span className={`${remainingAiMinutes <= Math.max(100, monthlyAiLimit * 0.1) ? 'text-error' : 'text-primary'}`}>
+                        {remainingAiMinutes.toLocaleString('vi-VN')} phút còn lại
+                      </span>
+                    </div>
+                    <div className="h-2 rounded-full bg-surface-container overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${usagePercent}%` }}
+                        transition={{ duration: 0.6, ease: 'easeOut' }}
+                        className={`h-full rounded-full ${usagePercent >= 90 ? 'bg-error' : usagePercent >= 80 ? 'bg-amber-500' : 'bg-primary'}`}
+                      />
+                    </div>
+                    {aiUsagePeriodEnd && <p className="text-[11px] font-medium text-on-surface-variant">Cấp lại quota vào {aiUsagePeriodEnd}</p>}
+                    {personalMonthlyUsage && remainingAiMinutes === 0 && (
+                      <Link
+                        to="/payment"
+                        state={{ plan: PERSONAL_AI_USAGE_TOP_UP_PLAN }}
+                        className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-on-primary transition-colors hover:bg-primary-container"
+                      >
+                        <ShoppingCart className="h-3.5 w-3.5" />
+                        Mua thêm 200 phút - 29.000đ
+                      </Link>
+                    )}
+                  </div>
+                ) : entitlement?.usageScope === 'UNLIMITED' ? (
                   <p className="text-sm font-bold text-on-surface">Không giới hạn</p>
+                ) : dailyUnlimited ? (
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">Không giới hạn theo ngày</p>
+                    {dailyUsageReset && <p className="mt-2 text-[11px] font-medium text-on-surface-variant">Cấp lại vào {dailyUsageReset}</p>}
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs font-semibold">
@@ -409,6 +511,7 @@ const ProfilePage: React.FC = () => {
                         className={`h-full rounded-full ${remainingMinutes <= 5 ? 'bg-error' : usagePercent >= 50 ? 'bg-amber-500' : 'bg-primary'}`}
                       />
                     </div>
+                    {dailyUsageReset && <p className="text-[11px] font-medium text-on-surface-variant">Cấp lại vào {dailyUsageReset}</p>}
                   </div>
                 )}
               </div>

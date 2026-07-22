@@ -18,7 +18,7 @@ public class PackageRequest {
     Integer durationDays;
     Integer aiLimitPerDay;
     Integer dailyUsageMinutes;
-    Integer maxAccounts;
+    Integer monthlyAiMinutes;
     Boolean fullFeatures;
     String planType;
 }

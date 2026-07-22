@@ -19,6 +19,7 @@ import PackageManagement from '../pages/admin/PackageManagement';
 import SubscriptionManagement from '../pages/admin/SubscriptionManagement';
 import SchoolManagement from '../pages/admin/SchoolManagement';
 import VideoManagement from '../pages/admin/VideoManagement';
+import ProtectedRoute from '../components/ProtectedRoute';
 
 export const router = createBrowserRouter([
   {
@@ -43,7 +44,7 @@ export const router = createBrowserRouter([
   },
   {
     path: '/profile',
-    element: <ProfilePage />,
+    element: <ProtectedRoute><ProfilePage /></ProtectedRoute>,
   },
   {
     path: '/packages',
@@ -59,19 +60,19 @@ export const router = createBrowserRouter([
   },
   {
     path: '/payment',
-    element: <PaymentPage />,
+    element: <ProtectedRoute><PaymentPage /></ProtectedRoute>,
   },
   {
     path: '/payment-success',
-    element: <PaymentPage />, // Use the same component but it will show success status
+    element: <ProtectedRoute><PaymentPage /></ProtectedRoute>, // Use the same component but it will show success status
   },
   {
     path: '/payment-cancel',
-    element: <PaymentPage />, // Use the same component but it will show cancel status
+    element: <ProtectedRoute><PaymentPage /></ProtectedRoute>, // Use the same component but it will show cancel status
   },
   {
     path: '/school',
-    element: <SchoolPage />,
+    element: <ProtectedRoute allowedRoles={['SCHOOL_ADMIN']}><SchoolPage /></ProtectedRoute>,
   },
   {
     path: '/school/invitations/:token',
@@ -79,19 +80,19 @@ export const router = createBrowserRouter([
   },
   {
     path: '/teacher',
-    element: <TeacherPage />,
+    element: <ProtectedRoute allowedRoles={['TEACHER']}><TeacherPage /></ProtectedRoute>,
   },
   {
     path: '/teacher/classes/:id',
-    element: <TeacherPage />,
+    element: <ProtectedRoute allowedRoles={['TEACHER']}><TeacherPage /></ProtectedRoute>,
   },
   {
     path: '/my-lessons',
-    element: <MyLessonsPage />,
+    element: <ProtectedRoute allowedRoles={['STUDENT']}><MyLessonsPage /></ProtectedRoute>,
   },
   {
     path: '/admin',
-    element: <AdminLayout />,
+    element: <ProtectedRoute allowedRoles={['ADMIN']}><AdminLayout /></ProtectedRoute>,
     children: [
       {
         index: true,

@@ -3,6 +3,13 @@ console.log("Signify Background Service Worker initialized!");
 
 // Production backend URL (Render). Change this if the backend is redeployed elsewhere.
 const BACKEND_URL = "http://localhost:8080";
+const SIGNIFY_WEB_URL_PATTERNS = [
+  "http://localhost:5173/*",
+  "http://127.0.0.1:5173/*",
+  "https://signify-i3rd.onrender.com/*",
+  "https://signify-g3zb.onrender.com/*"
+];
+const SIGNIFY_LOGIN_URL = "http://localhost:5173/login";
 
 // Health-check the backend. Returns true if reachable.
 async function checkBackendHealth() {
@@ -51,10 +58,87 @@ async function convertUrlToBase64(url) {
   }
 }
 
+async function readSignifyAuthFromTab(tabId) {
+  const results = await chrome.scripting.executeScript({
+    target: { tabId },
+    world: 'MAIN',
+    func: () => ({
+      token: window.localStorage.getItem('token'),
+      user: window.localStorage.getItem('user')
+    })
+  });
+
+  return results?.[0]?.result || null;
+}
+
+async function validateSignifyAuth(token) {
+  const response = await fetch(`${BACKEND_URL}/api/users/profile`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+
+  if ([401, 403, 404].includes(response.status)) return null;
+  if (!response.ok) {
+    throw new Error(`Unable to validate Signify session: HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function syncSignifyAuthFromOpenTabs() {
+  const tabs = await chrome.tabs.query({ url: SIGNIFY_WEB_URL_PATTERNS });
+
+  for (const tab of tabs) {
+    if (!Number.isInteger(tab.id)) continue;
+
+    try {
+      const webAuth = await readSignifyAuthFromTab(tab.id);
+      if (!webAuth?.token) continue;
+
+      let user = webAuth.user;
+      try {
+        const profile = await validateSignifyAuth(webAuth.token);
+        if (!profile) continue;
+        user = JSON.stringify(profile);
+      } catch (error) {
+        // Do not discard a browser session because of a temporary backend failure.
+        console.warn('Unable to validate Signify browser session:', error);
+      }
+
+      const storedAuth = await chrome.storage.local.get(['signifyAuthToken', 'signifyUser']);
+      const authChanged = storedAuth.signifyAuthToken !== webAuth.token
+        || storedAuth.signifyUser !== (user || undefined);
+      const authData = { signifyAuthToken: webAuth.token };
+      if (user) authData.signifyUser = user;
+      await chrome.storage.local.set(authData);
+      if (!user) await chrome.storage.local.remove('signifyUser');
+
+      return { success: true, authenticated: true, authChanged };
+    } catch (error) {
+      console.warn(`Unable to scan Signify tab ${tab.id}:`, error);
+    }
+  }
+
+  await chrome.tabs.create({ url: SIGNIFY_LOGIN_URL, active: true });
+  return { success: true, authenticated: false, loginOpened: true };
+}
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Backend health-check if requested
   if (message.action === "get_active_port") {
     checkBackendHealth().then(online => sendResponse({ online: online, backendUrl: BACKEND_URL }));
+    return true;
+  }
+
+  if (message.action === "scan_signify_web_auth") {
+    syncSignifyAuthFromOpenTabs()
+      .then(sendResponse)
+      .catch(async error => {
+        try {
+          await chrome.tabs.create({ url: SIGNIFY_LOGIN_URL, active: true });
+        } catch (openError) {
+          console.warn('Unable to open Signify login tab:', openError);
+        }
+        sendResponse({ success: false, authenticated: false, error: error.toString() });
+      });
     return true;
   }
 
@@ -198,6 +282,85 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // Keep channel open
   }
 
+  if (message.action === "ai_usage_authorize") {
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      if (!token) {
+        sendResponse({ success: false, authRequired: true, error: "Vui lòng đăng nhập Signify để sử dụng extension." });
+        return;
+      }
+      fetch(`${BACKEND_URL}/api/v1/ai-usage/videos/authorize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(message.requestData || {})
+      })
+        .then(async response => {
+          const responseData = await response.json().catch(() => ({}));
+          if (response.status === 403 && ['FREE_DAILY_LIMIT_REACHED', 'SCHOOL_AI_MONTHLY_LIMIT_REACHED', 'SCHOOL_AI_DAILY_LIMIT_REACHED'].includes(responseData.code)) {
+            sendResponse({ success: false, quotaExceeded: true, data: responseData });
+            return;
+          }
+          if (response.status === 403 && responseData.code === 'SCHOOL_VIDEO_NOT_ACTIVATED') {
+            sendResponse({ success: false, schoolVideoBlocked: true, data: responseData });
+            return;
+          }
+          if (response.status === 409 && responseData.code === 'AI_VIDEO_PROCESSING_IN_PROGRESS') {
+            sendResponse({ success: false, schoolVideoBlocked: true, data: responseData });
+            return;
+          }
+          if (response.status === 401) {
+            sendResponse({ success: false, authRequired: true, data: responseData, error: responseData.message });
+            return;
+          }
+          sendResponse({ success: response.ok, data: responseData, error: response.ok ? null : responseData.message });
+        })
+        .catch(error => sendResponse({ success: false, error: error.toString() }));
+    });
+    return true;
+  }
+
+  if (message.action === "resolve_sign_animations") {
+    fetch(`${BACKEND_URL}/api/ai/resolve-sign-animations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ words: Array.isArray(message.words) ? message.words : [] })
+    })
+      .then(async response => {
+        const responseData = await response.json().catch(() => []);
+        sendResponse({
+          success: response.ok,
+          data: response.ok && Array.isArray(responseData) ? responseData : [],
+          error: response.ok ? null : `HTTP ${response.status}`
+        });
+      })
+      .catch(error => sendResponse({ success: false, data: [], error: error.toString() }));
+    return true;
+  }
+
+  if (message.action === "ai_usage_processing_complete" || message.action === "ai_usage_processing_fail") {
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const outcome = message.action === "ai_usage_processing_complete" ? 'complete' : 'fail';
+      if (!token || !message.processingId) {
+        sendResponse({ success: false, error: "Missing token or processingId" });
+        return;
+      }
+      fetch(`${BACKEND_URL}/api/v1/ai-usage/processings/${encodeURIComponent(message.processingId)}/${outcome}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+        .then(async response => {
+          const responseData = await response.json().catch(() => ({}));
+          sendResponse({ success: response.ok, data: responseData, error: response.ok ? null : responseData.message });
+        })
+        .catch(error => sendResponse({ success: false, error: error.toString() }));
+    });
+    return true;
+  }
+
   if (message.action === "usage_session_start") {
     chrome.storage.local.get(["signifyAuthToken"], (data) => {
       const token = data.signifyAuthToken;
@@ -222,8 +385,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
         .then(async response => {
           const data = await response.json().catch(() => ({}));
-          if (response.status === 403 && data.code === 'FREE_DAILY_LIMIT_REACHED') {
+          if (response.status === 403 && ['FREE_DAILY_LIMIT_REACHED', 'SCHOOL_AI_MONTHLY_LIMIT_REACHED', 'SCHOOL_AI_DAILY_LIMIT_REACHED'].includes(data.code)) {
             sendResponse({ success: false, quotaExceeded: true, data });
+            return;
+          }
+          if (response.status === 403 && data.code === 'SCHOOL_VIDEO_NOT_ACTIVATED') {
+            sendResponse({ success: false, schoolVideoBlocked: true, data });
             return;
           }
           if (!response.ok) {
@@ -251,7 +418,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       fetch(`${BACKEND_URL}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/heartbeat`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(message.requestData || {})
       })
         .then(async response => {
           const data = await response.json().catch(() => ({}));
@@ -284,7 +455,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
       fetch(`${BACKEND_URL}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/end`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(message.requestData || {})
       })
         .then(async response => {
           const data = await response.json().catch(() => ({}));
@@ -324,7 +499,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       })
         .then(async response => {
           const data = await response.json().catch(() => ({}));
-          if (response.status === 403 && data.code === 'FREE_DAILY_LIMIT_REACHED') {
+          if (response.status === 403 && ['FREE_DAILY_LIMIT_REACHED', 'SCHOOL_AI_MONTHLY_LIMIT_REACHED', 'SCHOOL_AI_DAILY_LIMIT_REACHED'].includes(data.code)) {
             sendResponse({ success: false, quotaExceeded: true, data });
             return;
           }

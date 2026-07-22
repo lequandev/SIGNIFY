@@ -2,6 +2,9 @@ package com.signify.modules.payment.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.signify.modules.entitlement.dto.AiUsageSummaryResponse;
+import com.signify.modules.entitlement.service.PersonalAiUsageService;
+import com.signify.modules.entitlement.service.SchoolAiUsageService;
 import com.signify.modules.school.service.SchoolService;
 import com.signify.modules.payment.dto.request.CreatePaymentRequest;
 import com.signify.modules.payment.dto.response.PaymentResponse;
@@ -37,12 +40,22 @@ import java.util.Random;
 @RequiredArgsConstructor
 public class PaymentService {
 
+    public static final String PAYMENT_TYPE_SUBSCRIPTION = "SUBSCRIPTION";
+    public static final String PAYMENT_TYPE_AI_USAGE_TOP_UP = "AI_USAGE_TOP_UP";
+    public static final int AI_USAGE_TOP_UP_MINUTES = 1000;
+    public static final long AI_USAGE_TOP_UP_PRICE = 399000L;
+    public static final String PAYMENT_TYPE_PERSONAL_AI_USAGE_TOP_UP = "PERSONAL_AI_USAGE_TOP_UP";
+    public static final int PERSONAL_AI_USAGE_TOP_UP_MINUTES = 200;
+    public static final long PERSONAL_AI_USAGE_TOP_UP_PRICE = 29000L;
+
     private final PayOS payOS;
     private final PaymentRepository paymentRepository;
     private final ServicePackageRepository servicePackageRepository;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
     private final SchoolService schoolService;
+    private final SchoolAiUsageService schoolAiUsageService;
+    private final PersonalAiUsageService personalAiUsageService;
 
     @Value("${payos.return-url}")
     private String returnUrl;
@@ -72,6 +85,7 @@ public class PaymentService {
                 : null;
         Payment payment = Payment.builder()
                 .userId(userId)
+                .paymentType(PAYMENT_TYPE_SUBSCRIPTION)
                 .subscriptionId(servicePackage.getId())
                 .organizationName(organizationName)
                 .amount(amount)
@@ -81,19 +95,64 @@ public class PaymentService {
                 .build();
         paymentRepository.save(payment);
 
+        return createPayOsPaymentLink(payment, servicePackage.getName(), amount.longValueExact());
+    }
+
+    @Transactional
+    public PaymentResponse createAiUsageTopUpPaymentLink(String userId) {
+        AiUsageSummaryResponse usage = schoolAiUsageService.requireTopUpEligibility(userId);
+        Long orderCode = generateOrderCode();
+        Payment payment = Payment.builder()
+                .userId(userId)
+                .paymentType(PAYMENT_TYPE_AI_USAGE_TOP_UP)
+                .schoolId(usage.getSchoolId())
+                .topUpMinutes(AI_USAGE_TOP_UP_MINUTES)
+                .amount(BigDecimal.valueOf(AI_USAGE_TOP_UP_PRICE))
+                .orderCode(orderCode)
+                .status("PENDING")
+                .paymentMethod("PAYOS")
+                .build();
+        paymentRepository.save(payment);
+
+        return createPayOsPaymentLink(
+                payment,
+                "Mua thêm 1.000 phút AI",
+                AI_USAGE_TOP_UP_PRICE);
+    }
+
+    @Transactional
+    public PaymentResponse createPersonalAiUsageTopUpPaymentLink(String userId) {
+        personalAiUsageService.requireTopUpEligibility(userId);
+        Long orderCode = generateOrderCode();
+        Payment payment = Payment.builder()
+                .userId(userId)
+                .paymentType(PAYMENT_TYPE_PERSONAL_AI_USAGE_TOP_UP)
+                .topUpMinutes(PERSONAL_AI_USAGE_TOP_UP_MINUTES)
+                .amount(BigDecimal.valueOf(PERSONAL_AI_USAGE_TOP_UP_PRICE))
+                .orderCode(orderCode)
+                .status("PENDING")
+                .paymentMethod("PAYOS")
+                .build();
+        paymentRepository.save(payment);
+
+        return createPayOsPaymentLink(
+                payment,
+                "Mua thêm 200 phút AI",
+                PERSONAL_AI_USAGE_TOP_UP_PRICE);
+    }
+
+    private PaymentResponse createPayOsPaymentLink(Payment payment, String itemName, long price) {
         try {
-            long price = Long.parseLong(priceClean);
-            
             PaymentLinkItem item = PaymentLinkItem.builder()
-                    .name(servicePackage.getName())
+                    .name(itemName)
                     .quantity(1)
                     .price(price)
                     .build();
 
-            String paymentDescription = "SIGNIFY" + orderCode;
+            String paymentDescription = "SIGNIFY" + payment.getOrderCode();
 
             CreatePaymentLinkRequest paymentLinkRequest = CreatePaymentLinkRequest.builder()
-                    .orderCode(orderCode)
+                    .orderCode(payment.getOrderCode())
                     .amount(price)
                     .description(paymentDescription)
                     .returnUrl(returnUrl)
@@ -106,7 +165,7 @@ public class PaymentService {
             return PaymentResponse.builder()
                     .checkoutUrl(data.getCheckoutUrl())
                     .qrCode(data.getQrCode())
-                    .orderCode(orderCode)
+                    .orderCode(payment.getOrderCode())
                     .accountName(data.getAccountName())
                     .accountNumber(data.getAccountNumber())
                     .amount(data.getAmount().intValue())
@@ -136,7 +195,7 @@ public class PaymentService {
 
                     // Idempotency: check if already processed
                     if ("PAID".equals(payment.getStatus())) {
-                        provisionSchoolIfNeeded(payment, null);
+                        fulfillPaidPayment(payment);
                         log.info("Webhook already processed for orderCode={}", orderCode);
                         response.put("error", 0);
                         response.put("message", "Already processed");
@@ -206,7 +265,7 @@ public class PaymentService {
 
     private void activatePaidPayment(Payment payment, String reference) {
         if ("PAID".equals(payment.getStatus())) {
-            provisionSchoolIfNeeded(payment, null);
+            fulfillPaidPayment(payment);
             return;
         }
 
@@ -214,6 +273,43 @@ public class PaymentService {
         payment.setTransactionCode(reference);
         payment.setPaidAt(LocalDateTime.now());
         paymentRepository.save(payment);
+
+        fulfillPaidPayment(payment);
+    }
+
+    private void fulfillPaidPayment(Payment payment) {
+        if (PAYMENT_TYPE_PERSONAL_AI_USAGE_TOP_UP.equals(payment.getPaymentType())) {
+            if (payment.getFulfilledAt() != null) return;
+            int minutes = payment.getTopUpMinutes() != null && payment.getTopUpMinutes() > 0
+                    ? payment.getTopUpMinutes()
+                    : PERSONAL_AI_USAGE_TOP_UP_MINUTES;
+            personalAiUsageService.applyPurchasedTopUp(
+                    payment.getUserId(), payment.getOrderCode(), minutes);
+            payment.setFulfilledAt(LocalDateTime.now());
+            paymentRepository.save(payment);
+            log.info("Added {} AI minutes for personal user {} from order {}",
+                    minutes, payment.getUserId(), payment.getOrderCode());
+            return;
+        }
+
+        if (PAYMENT_TYPE_AI_USAGE_TOP_UP.equals(payment.getPaymentType())) {
+            if (payment.getFulfilledAt() != null) return;
+            int minutes = payment.getTopUpMinutes() != null && payment.getTopUpMinutes() > 0
+                    ? payment.getTopUpMinutes()
+                    : AI_USAGE_TOP_UP_MINUTES;
+            schoolAiUsageService.applyPurchasedTopUp(
+                    payment.getUserId(), payment.getOrderCode(), minutes);
+            payment.setFulfilledAt(LocalDateTime.now());
+            paymentRepository.save(payment);
+            log.info("Added {} AI minutes for school {} from order {}",
+                    minutes, payment.getSchoolId(), payment.getOrderCode());
+            return;
+        }
+
+        if (payment.getActivatedSubscriptionId() != null) {
+            provisionSchoolIfNeeded(payment, null);
+            return;
+        }
 
         Subscription subscription = subscriptionService.createSubscription(
                 payment.getUserId(), payment.getSubscriptionId(), payment.getOrganizationName());

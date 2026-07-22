@@ -1,16 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Plus, Edit2, Trash2, Package, Check, X, DollarSign, Clock, Zap, Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, Package, X, DollarSign, Clock, Zap, Search, SlidersHorizontal, ChevronDown } from 'lucide-react';
+import axios from 'axios';
 import api from '../../services/api';
 import { useToast } from '../../context/ToastContext';
 import ConfirmModal from '../../components/ConfirmModal';
 
+interface PackageRecord {
+  id: string;
+  name: string;
+  description?: string;
+  price: number | string;
+  durationDays?: number;
+  aiLimitPerDay?: number;
+  monthlyAiMinutes?: number | null;
+  planType: 'individual' | 'education';
+}
+
+interface ApiErrorResponse {
+  message?: string;
+}
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (!axios.isAxiosError<ApiErrorResponse>(error)) return fallback;
+  return error.response?.data?.message || error.message || fallback;
+};
+
 const PackageManagement = () => {
   const { showToast } = useToast();
-  const [packages, setPackages] = useState<any[]>([]);
+  const [packages, setPackages] = useState<PackageRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [editingPackage, setEditingPackage] = useState<any>(null);
+  const [editingPackage, setEditingPackage] = useState<PackageRecord | null>(null);
   const [deleteModal, setDeleteModal] = useState<{ isOpen: boolean; id: string } | null>(null);
   const [newPackage, setNewPackage] = useState({
     name: '',
@@ -18,6 +39,7 @@ const PackageManagement = () => {
     price: 0,
     durationDays: 30,
     aiLimitPerDay: 10,
+    monthlyAiMinutes: 800 as number | null,
     planType: 'individual'
   });
 
@@ -74,13 +96,13 @@ const PackageManagement = () => {
       resetForm();
       fetchPackages();
       showToast(editingPackage ? 'Package updated successfully' : 'Package created successfully', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to save package', err);
-      showToast(err.response?.data?.message || 'Failed to save package', 'error');
+      showToast(getApiErrorMessage(err, 'Failed to save package'), 'error');
     }
   };
 
-  const handleEdit = (pkg: any) => {
+  const handleEdit = (pkg: PackageRecord) => {
     setEditingPackage(pkg);
     setNewPackage({
       name: pkg.name,
@@ -88,6 +110,7 @@ const PackageManagement = () => {
       price: pkg.price ? Number(pkg.price.toString().replace(/,/g, '')) : 0,
       durationDays: pkg.durationDays || 30,
       aiLimitPerDay: pkg.aiLimitPerDay || 10,
+      monthlyAiMinutes: pkg.monthlyAiMinutes ?? (pkg.planType === 'education' ? 10000 : 800),
       planType: pkg.planType || 'individual'
     });
     setShowAddModal(true);
@@ -98,9 +121,9 @@ const PackageManagement = () => {
       await api.delete(`/v1/service-packages/${id}`);
       fetchPackages();
       showToast('Package deleted successfully', 'success');
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Failed to delete package', err);
-      showToast(err.response?.data?.message || 'Failed to delete package', 'error');
+      showToast(getApiErrorMessage(err, 'Failed to delete package'), 'error');
     }
   };
 
@@ -111,6 +134,7 @@ const PackageManagement = () => {
       price: 0,
       durationDays: 30,
       aiLimitPerDay: 10,
+      monthlyAiMinutes: 800,
       planType: 'individual'
     });
   };
@@ -305,9 +329,9 @@ const PackageManagement = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-400">
                   <Zap className="w-4 h-4" />
-                  <span className="text-xs font-bold uppercase tracking-wider">AI Limit</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">AI Usage</span>
                 </div>
-                <span className="text-sm font-black text-slate-700">{pkg.aiLimitPerDay} Req/Day</span>
+                <span className="text-sm font-black text-slate-700">{`${Number(pkg.monthlyAiMinutes || (pkg.planType === 'education' ? 10000 : 800)).toLocaleString('vi-VN')} phút/tháng`}</span>
               </div>
             </div>
           </motion.div>
@@ -388,13 +412,14 @@ const PackageManagement = () => {
                       </div>
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">AI Limit Per Day</label>
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 ml-1">AI Minutes Per Month</label>
                       <input
                         type="number"
                         required
+                        min="1"
                         className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-5 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-[#2563EB]/10 transition-all"
-                        value={newPackage.aiLimitPerDay}
-                        onChange={(e) => setNewPackage({ ...newPackage, aiLimitPerDay: Number(e.target.value) })}
+                        value={newPackage.monthlyAiMinutes || (newPackage.planType === 'education' ? 10000 : 800)}
+                        onChange={(e) => setNewPackage({ ...newPackage, monthlyAiMinutes: Number(e.target.value) })}
                       />
                     </div>
                     <div className="space-y-2">
@@ -402,7 +427,7 @@ const PackageManagement = () => {
                       <div className="grid grid-cols-2 gap-2 bg-slate-50 p-1 rounded-2xl border border-slate-200">
                         <button
                           type="button"
-                          onClick={() => setNewPackage({ ...newPackage, planType: 'individual' })}
+                          onClick={() => setNewPackage({ ...newPackage, planType: 'individual', monthlyAiMinutes: 800 })}
                           className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                             newPackage.planType === 'individual'
                               ? 'bg-white text-[#2563EB] shadow-md shadow-[#2563EB]/5 border border-slate-100'
@@ -413,7 +438,7 @@ const PackageManagement = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setNewPackage({ ...newPackage, planType: 'education' })}
+                          onClick={() => setNewPackage({ ...newPackage, planType: 'education', monthlyAiMinutes: newPackage.monthlyAiMinutes || 10000 })}
                           className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
                             newPackage.planType === 'education'
                               ? 'bg-white text-[#2563EB] shadow-md shadow-[#2563EB]/5 border border-slate-100'

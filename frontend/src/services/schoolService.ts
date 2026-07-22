@@ -14,7 +14,6 @@ export interface SchoolOverview {
   memberCount: number;
   teacherCount: number;
   studentCount: number;
-  maxAccounts: number;
   canManageMembers: boolean;
 }
 

@@ -1,7 +1,5 @@
 package com.signify.modules.youtube.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.signify.modules.ai.dto.SignSequenceRequest;
 import com.signify.modules.youtube.dto.SaveScriptsRequest;
 import com.signify.modules.youtube.dto.SaveVideoInfoRequest;
@@ -10,14 +8,8 @@ import com.signify.modules.youtube.model.YoutubeVideo;
 import com.signify.modules.youtube.repository.YoutubeVideoRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -28,19 +20,6 @@ import java.util.*;
 public class YoutubeVideoService {
 
     private final YoutubeVideoRepository youtubeVideoRepository;
-
-    @Value("${groq.api-key:}")
-    private String groqApiKey;
-
-    @Value("${groq.model:llama-3.3-70b-versatile}")
-    private String groqModel;
-
-    private final HttpClient httpClient = HttpClient.newBuilder()
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .connectTimeout(Duration.ofSeconds(15))
-            .build();
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
      * Trích xuất YouTube video ID thuần từ ID hoặc URL.
@@ -142,18 +121,11 @@ public class YoutubeVideoService {
             }
             if (request.getSignLanguage() != null && !request.getSignLanguage().isBlank()) {
                 video.setSignLanguage(request.getSignLanguage());
+                video.setIsProcessed(true);
             }
             if (request.getSignLanguageScripts() != null && !request.getSignLanguageScripts().isEmpty()) {
                 video.setSignLanguageScripts(request.getSignLanguageScripts());
                 video.setIsProcessed(true);
-            }
-
-            if ((video.getSignLanguage() == null || video.getSignLanguage().isBlank()) && video.getTitle() != null && !video.getTitle().isBlank()) {
-                String generatedSignLanguage = generateSignLanguageFromTitle(video.getTitle());
-                if (!generatedSignLanguage.isBlank()) {
-                    video.setSignLanguage(generatedSignLanguage);
-                    video.setIsProcessed(true);
-                }
             }
 
             video.setUpdatedAt(now);
@@ -161,14 +133,8 @@ public class YoutubeVideoService {
             log.info("[YoutubeVideoService] Existing video retrieved & updated for videoId: {}", request.getVideoId());
         } else {
             boolean hasScripts = request.getSignLanguageScripts() != null && !request.getSignLanguageScripts().isEmpty();
-
             String signLanguageStr = request.getSignLanguage();
-            if ((signLanguageStr == null || signLanguageStr.isBlank()) && request.getTitle() != null && !request.getTitle().isBlank()) {
-                signLanguageStr = generateSignLanguageFromTitle(request.getTitle());
-                if (!signLanguageStr.isBlank()) {
-                    hasScripts = true;
-                }
-            }
+            boolean hasAiData = hasScripts || (signLanguageStr != null && !signLanguageStr.isBlank());
 
             video = YoutubeVideo.builder()
                     .videoId(request.getVideoId())
@@ -176,7 +142,7 @@ public class YoutubeVideoService {
                     .title(request.getTitle())
                     .signLanguage(signLanguageStr)
                     .signLanguageScripts(request.getSignLanguageScripts())
-                    .isProcessed(hasScripts)
+                    .isProcessed(hasAiData)
                     .createdByUserId(userId)
                     .viewCount(1)
                     .lastAccessedAt(now)
@@ -211,10 +177,6 @@ public class YoutubeVideoService {
         video.setSignLanguageScripts(request.getSignLanguageScripts());
         video.setIsProcessed(true);
         video.setUpdatedAt(now);
-
-        if ((video.getSignLanguage() == null || video.getSignLanguage().isBlank()) && video.getTitle() != null && !video.getTitle().isBlank()) {
-            video.setSignLanguage(generateSignLanguageFromTitle(video.getTitle()));
-        }
 
         YoutubeVideo saved = youtubeVideoRepository.save(video);
         log.info("[YoutubeVideoService] Scripts cached successfully for videoId: {}", request.getVideoId());
@@ -276,59 +238,6 @@ public class YoutubeVideoService {
 
     public void deleteVideo(String id) {
         youtubeVideoRepository.deleteById(id);
-    }
-
-    /**
-     * Gọi Groq API để rút gọn tiêu đề thành danh sách từ ký hiệu tiếng Việt.
-     */
-    public String generateSignLanguageFromTitle(String title) {
-        if (title == null || title.isBlank()) return "";
-        if (groqApiKey == null || groqApiKey.isBlank()) {
-            log.warn("[Groq AI] GROQ_API_KEY chưa được cấu hình.");
-            return "";
-        }
-
-        try {
-            log.info("[Groq AI] Generating sign language keywords for: '{}'", title);
-
-            String systemPrompt = "Bạn là chuyên gia ngôn ngữ ký hiệu (Sign Language) tiếng Việt. " +
-                    "Nhiệm vụ: Rút gọn tiêu đề/nội dung được cung cấp thành danh sách các từ/cụm từ ngữ ký hiệu cốt lõi tiếng Việt theo thứ tự ngữ pháp ký hiệu. " +
-                    "Định dạng đầu ra BẮT BUỘC: Chỉ trả về các từ/cụm từ ngăn cách nhau bằng dấu phẩy và khoảng trắng ', ' " +
-                    "(ví dụ: 'Bé, đi học, về, mẹ, cho, táo, ăn, ngon, bé, vui, hôn, má, mẹ'). " +
-                    "QUY TẮC: KHÔNG giải thích, KHÔNG markdown, KHÔNG dùng ngoặc vuông hay ngoặc kép, " +
-                    "CHỈ trả về chuỗi từ ký hiệu ngăn cách bằng dấu phẩy.";
-
-            Map<String, Object> requestMap = Map.of(
-                    "model", (groqModel != null && !groqModel.isBlank()) ? groqModel : "llama-3.3-70b-versatile",
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user", "content", title)),
-                    "temperature", 0.3,
-                    "max_tokens", 300);
-
-            String requestBody = objectMapper.writeValueAsString(requestMap);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://api.groq.com/openai/v1/chat/completions"))
-                    .header("Authorization", "Bearer " + groqApiKey)
-                    .header("Content-Type", "application/json; charset=UTF-8")
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody, java.nio.charset.StandardCharsets.UTF_8))
-                    .timeout(Duration.ofSeconds(15))
-                    .build();
-
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(java.nio.charset.StandardCharsets.UTF_8));
-            if (response.statusCode() == 200) {
-                JsonNode root   = objectMapper.readTree(response.body());
-                String   result = root.path("choices").get(0).path("message").path("content").asText();
-                if (result != null) result = result.replaceAll("[\"'\\[\\]]", "").trim();
-                log.info("[Groq AI] Keywords generated: '{}'", result);
-                return result;
-            } else {
-                log.error("[Groq AI] Error {}: {}", response.statusCode(), response.body());
-            }
-        } catch (Exception e) {
-            log.error("[Groq AI] Failed to generate sign language keywords", e);
-        }
-        return "";
     }
 
     private VideoInfoResponse mapToResponse(YoutubeVideo video) {

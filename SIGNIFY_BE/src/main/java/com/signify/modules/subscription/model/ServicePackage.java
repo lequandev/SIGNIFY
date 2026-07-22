@@ -37,7 +37,7 @@ public class ServicePackage {
 
     Integer dailyUsageMinutes;
 
-    Integer maxAccounts;
+    Integer monthlyAiMinutes;
 
     Boolean fullFeatures;
 

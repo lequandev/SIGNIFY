@@ -15,7 +15,7 @@ export interface ServicePackage {
   durationDays?: number;
   aiLimitPerDay?: number;
   dailyUsageMinutes?: number | null;
-  maxAccounts?: number | null;
+  monthlyAiMinutes?: number | null;
   fullFeatures?: boolean;
   buttonText: string;
   isRecommended: boolean;

@@ -1,9 +1,24 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+export interface AuthUser {
+  id?: string;
+  _id?: string;
+  fullName?: string;
+  email?: string;
+  username?: string;
+  phoneNumber?: string;
+  address?: string;
+  avatarUrl?: string;
+  role?: string;
+  status?: string;
+  createdAt?: string;
+}
+
 interface AuthState {
-  user: any | null;
+  user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
+  initialized: boolean;
 }
 
 const getStoredAuth = (): AuthState => {
@@ -12,18 +27,18 @@ const getStoredAuth = (): AuthState => {
       user: null,
       token: null,
       isAuthenticated: false,
+      initialized: true,
     };
   }
 
   try {
     const storedToken = window.localStorage.getItem('token');
-    const storedUser = window.localStorage.getItem('user');
-
     if (storedToken) {
       return {
-        user: storedUser ? JSON.parse(storedUser) : null,
+        user: null,
         token: storedToken,
-        isAuthenticated: true,
+        isAuthenticated: false,
+        initialized: false,
       };
     }
   } catch (error) {
@@ -34,6 +49,7 @@ const getStoredAuth = (): AuthState => {
     user: null,
     token: null,
     isAuthenticated: false,
+    initialized: true,
   };
 };
 
@@ -55,20 +71,28 @@ const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setLogin: (state, action: PayloadAction<{ user: any; token: string }>) => {
+    setLogin: (state, action: PayloadAction<{ user: AuthUser; token: string }>) => {
       state.user = action.payload.user;
       state.token = action.payload.token;
       state.isAuthenticated = true;
+      state.initialized = true;
       persistAuth(state);
+    },
+    restoreStoredSession: (state, action: PayloadAction<string | null>) => {
+      state.user = null;
+      state.token = action.payload;
+      state.isAuthenticated = false;
+      state.initialized = action.payload === null;
     },
     setLogout: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.initialized = true;
       persistAuth(state);
     },
   },
 });
 
-export const { setLogin, setLogout } = authSlice.actions;
+export const { restoreStoredSession, setLogin, setLogout } = authSlice.actions;
 export default authSlice.reducer;

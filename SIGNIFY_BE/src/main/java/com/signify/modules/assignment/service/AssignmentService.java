@@ -13,6 +13,7 @@ import com.signify.modules.classroom.repository.ClassroomRepository;
 import com.signify.modules.school.service.SchoolService;
 import com.signify.modules.tracking.model.History;
 import com.signify.modules.tracking.repository.HistoryRepository;
+import com.signify.modules.tracking.service.WatchHistoryService;
 import com.signify.modules.user.model.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class AssignmentService {
     private final ClassEnrollmentRepository enrollmentRepository;
     private final SchoolService schoolService;
     private final HistoryRepository historyRepository;
+    private final WatchHistoryService watchHistoryService;
 
     @Transactional
     public Assignment create(String teacherId, String classId, String youtubeUrl, String title,
@@ -120,15 +122,7 @@ public class AssignmentService {
     }
 
     public List<History> getStudentHistory(String teacherId, String studentId) {
-        SchoolService.SchoolContext teacherContext = schoolService.resolveSchoolContext(teacherId)
-                .orElseThrow(() -> new RuntimeException(SchoolService.SCHOOL_NOT_FOUND));
-        SchoolService.SchoolContext studentContext = schoolService.resolveSchoolContext(studentId)
-                .orElseThrow(() -> new RuntimeException("Student not found"));
-        if (!teacherContext.school().getId().equals(studentContext.school().getId())
-                || (!Role.TEACHER.equals(teacherContext.membership().getRole())
-                && !Role.SCHOOL_ADMIN.equals(teacherContext.membership().getRole()))) {
-            throw new RuntimeException(SchoolService.SCHOOL_FORBIDDEN);
-        }
+        watchHistoryService.assertCanViewStudent(teacherId, studentId);
         return historyRepository.findByUserIdOrderByWatchedAtDesc(studentId);
     }
 
