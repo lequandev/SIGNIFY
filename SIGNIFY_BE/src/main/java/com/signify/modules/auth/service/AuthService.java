@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.Collections;
 import java.util.UUID;
+import java.util.Locale;
 
 @Service
 @RequiredArgsConstructor
@@ -38,7 +39,8 @@ public class AuthService {
     private String frontendUrl;
 
     public void registerUser(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.getEmail())) {
+        String email = request.getEmail().trim().toLowerCase(Locale.ROOT);
+        if (userRepository.existsByEmail(email)) {
             throw new RuntimeException("User already exists");
         }
 
@@ -46,7 +48,7 @@ public class AuthService {
         
         User user = User.builder()
                 .fullName(request.getFullName())
-                .email(request.getEmail())
+                .email(email)
                 .passwordHash(passwordEncoder.encode(request.getPassword()))
                 .phoneNumber(request.getPhoneNumber())
                 .address(request.getAddress())
@@ -71,11 +73,22 @@ public class AuthService {
     }
 
     public AuthResponse loginUser(LoginRequest request) {
-        User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("Invalid email or password"));
+        String identifier = request.resolveIdentifier();
+        if (identifier == null || identifier.isBlank()) {
+            throw new RuntimeException("Email or login ID is required");
+        }
+        String normalized = identifier.trim();
+        User user = (normalized.contains("@")
+                ? userRepository.findByEmailIgnoreCase(normalized)
+                : userRepository.findByUsernameIgnoreCase(normalized))
+                .orElseThrow(() -> new RuntimeException("Invalid login ID or password"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            throw new RuntimeException("Invalid email or password");
+            throw new RuntimeException("Invalid login ID or password");
+        }
+
+        if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new RuntimeException("This account is inactive");
         }
 
         if (user.getIsVerified() != null && !user.getIsVerified()) {
@@ -88,8 +101,10 @@ public class AuthService {
                 ._id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .username(user.getUsername())
                 .role(user.getRole())
                 .token(token)
+                .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                 .build();
     }
 
@@ -119,9 +134,12 @@ public class AuthService {
             String name = (String) payload.get("name");
             String googleId = payload.getSubject();
 
-            User user = userRepository.findByEmail(email).orElse(null);
+            User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
             if (user != null) {
+                if ("INACTIVE".equalsIgnoreCase(user.getStatus())) {
+                    throw new RuntimeException("This account is inactive");
+                }
                 if (user.getGoogleId() == null) {
                     user.setGoogleId(googleId);
                     user.setIsVerified(true);
@@ -146,8 +164,10 @@ public class AuthService {
                     ._id(user.getId())
                     .fullName(user.getFullName())
                     .email(user.getEmail())
+                    .username(user.getUsername())
                     .role(user.getRole())
                     .token(token)
+                    .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                     .build();
         } catch (Exception e) {
             log.error("Google login failed", e);

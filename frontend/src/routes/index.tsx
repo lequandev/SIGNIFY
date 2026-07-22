@@ -6,8 +6,10 @@ import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import ProfilePage from '../pages/ProfilePage';
 import ServicePackage from '../pages/ServicePackage';
 import PaymentPage from '../pages/PaymentPage';
-import BusinessPage from '../pages/BusinessPage';
-import AcceptInvitePage from '../pages/AcceptInvitePage';
+import SchoolPage from '../pages/SchoolPage';
+import SchoolInvitationPage from '../pages/SchoolInvitationPage';
+import TeacherPage from '../pages/TeacherPage';
+import MyLessonsPage from '../pages/MyLessonsPage';
 import AboutPage from '../pages/AboutPage';
 import ContactPage from '../pages/ContactPage';
 import AdminLayout from '../components/admin/AdminLayout';
@@ -15,6 +17,7 @@ import DashboardOverview from '../pages/admin/DashboardOverview';
 import UserManagement from '../pages/admin/UserManagement';
 import PackageManagement from '../pages/admin/PackageManagement';
 import SubscriptionManagement from '../pages/admin/SubscriptionManagement';
+import SchoolManagement from '../pages/admin/SchoolManagement';
 
 export const router = createBrowserRouter([
   {
@@ -66,12 +69,24 @@ export const router = createBrowserRouter([
     element: <PaymentPage />, // Use the same component but it will show cancel status
   },
   {
-    path: '/business',
-    element: <BusinessPage />,
+    path: '/school',
+    element: <SchoolPage />,
   },
   {
-    path: '/accept-invite/:token',
-    element: <AcceptInvitePage />,
+    path: '/school/invitations/:token',
+    element: <SchoolInvitationPage />,
+  },
+  {
+    path: '/teacher',
+    element: <TeacherPage />,
+  },
+  {
+    path: '/teacher/classes/:id',
+    element: <TeacherPage />,
+  },
+  {
+    path: '/my-lessons',
+    element: <MyLessonsPage />,
   },
   {
     path: '/admin',
@@ -92,6 +107,10 @@ export const router = createBrowserRouter([
       {
         path: 'subscriptions',
         element: <SubscriptionManagement />,
+      },
+      {
+        path: 'schools',
+        element: <SchoolManagement />,
       },
     ],
   },

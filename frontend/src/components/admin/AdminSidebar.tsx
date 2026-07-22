@@ -7,6 +7,7 @@ import {
   Users,
   Package,
   CreditCard,
+  Building2,
   LogOut,
   ChevronRight,
   ChevronLeft,
@@ -31,6 +32,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isCollapsed, setIsCollapsed
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: Package, label: 'Packages', path: '/admin/packages' },
     { icon: CreditCard, label: 'Subscriptions', path: '/admin/subscriptions' },
+    { icon: Building2, label: 'Schools', path: '/admin/schools' },
   ];
 
   const closeMobileMenu = () => setIsMobileOpen?.(false);

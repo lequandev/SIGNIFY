@@ -9,7 +9,7 @@ import Header from '../components/Header';
 import Footer from '../components/Footer';
 
 const ServicePackage: React.FC = () => {
-  const [planType, setPlanType] = useState<'individual' | 'business'>('individual');
+  const [planType, setPlanType] = useState<'individual' | 'education'>('individual');
   const [packages, setPackages] = useState<ServicePackageType[]>([]);
   const [activeSubscription, setActiveSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,7 +60,7 @@ const ServicePackage: React.FC = () => {
     );
   }
 
-  const fallbackPackages: Record<'individual' | 'business', ServicePackageType[]> = {
+  const fallbackPackages: Record<'individual' | 'education', ServicePackageType[]> = {
     individual: [
       {
         id: 'fallback-personal-30',
@@ -117,61 +117,61 @@ const ServicePackage: React.FC = () => {
         ],
       },
     ],
-    business: [
+    education: [
       {
-        id: 'fallback-business-30',
-        planType: 'business',
-        name: 'Gói Doanh nghiệp - 1 tháng',
-        description: 'Quản lý tối đa 20 tài khoản trong một doanh nghiệp trong 1 tháng.',
+        id: 'fallback-education-30',
+        planType: 'education',
+        name: 'Gói Giáo dục - 1 tháng',
+        description: 'Quản lý giáo viên, học sinh và lớp học trong một trường.',
         price: '500,000',
         duration: 'tháng',
         durationDays: 30,
-        buttonText: 'Chọn Business 1 tháng',
+        buttonText: 'Chọn Giáo dục 1 tháng',
         isRecommended: false,
         badge: null,
         maxAccounts: 20,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 20 tài khoản trong một doanh nghiệp' },
-          { icon: 'Shield', text: '01 tài khoản Admin quản lý toàn bộ doanh nghiệp' },
+          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
+          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
       {
-        id: 'fallback-business-180',
-        planType: 'business',
-        name: 'Gói Doanh nghiệp - 6 tháng',
-        description: 'Giải pháp doanh nghiệp 6 tháng cho đội nhóm cần quản lý thành viên tập trung.',
+        id: 'fallback-education-180',
+        planType: 'education',
+        name: 'Gói Giáo dục - 6 tháng',
+        description: 'Giải pháp giáo dục 6 tháng cho trường học quản lý lớp và bài học tập trung.',
         price: '2,799,000',
         duration: '6 tháng',
         durationDays: 180,
-        buttonText: 'Chọn Business 6 tháng',
+        buttonText: 'Chọn Giáo dục 6 tháng',
         isRecommended: true,
-        badge: 'Doanh nghiệp chọn',
+        badge: 'Trường học chọn',
         maxAccounts: 20,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 20 tài khoản trong một doanh nghiệp' },
-          { icon: 'Shield', text: '01 tài khoản Admin quản lý toàn bộ doanh nghiệp' },
+          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
+          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
       {
-        id: 'fallback-business-365',
-        planType: 'business',
-        name: 'Gói Doanh nghiệp - 12 tháng',
-        description: 'Giải pháp dài hạn cho doanh nghiệp với đầy đủ quyền quản lý thành viên.',
+        id: 'fallback-education-365',
+        planType: 'education',
+        name: 'Gói Giáo dục - 12 tháng',
+        description: 'Giải pháp dài hạn cho trường học với lớp, bài tập và tiến độ học tập.',
         price: '5,500,000',
         duration: '12 tháng',
         durationDays: 365,
-        buttonText: 'Chọn Business 12 tháng',
+        buttonText: 'Chọn Giáo dục 12 tháng',
         isRecommended: false,
         badge: 'Dài hạn',
         maxAccounts: 20,
         fullFeatures: true,
         features: [
-          { icon: 'Users', text: 'Tối đa 20 tài khoản trong một doanh nghiệp' },
-          { icon: 'Shield', text: '01 tài khoản Admin quản lý toàn bộ doanh nghiệp' },
+          { icon: 'Users', text: 'Tối đa 50 tài khoản giáo viên và học sinh' },
+          { icon: 'Shield', text: '01 tài khoản School Admin quản lý toàn trường' },
           { icon: 'UserCog', text: 'Admin có thể thêm, xóa, kích hoạt hoặc vô hiệu hóa tài khoản thành viên' },
         ],
       },
@@ -183,7 +183,7 @@ const ServicePackage: React.FC = () => {
     const matched = packages.find(pkg =>
       pkg.planType === planType &&
       pkg.durationDays === durationDays &&
-      pkg.name?.toLowerCase().includes(planType === 'individual' ? 'cá nhân' : 'doanh nghiệp')
+      pkg.name?.toLowerCase().includes(planType === 'individual' ? 'cá nhân' : 'giáo dục')
     ) || packages.find(pkg =>
       pkg.planType === planType &&
       pkg.durationDays === durationDays
@@ -193,10 +193,10 @@ const ServicePackage: React.FC = () => {
     return matched ? { ...fallback, ...matched, features: Array.isArray(matched.features) ? matched.features : fallback.features } : fallback;
   });
 
-  const planTitle = planType === 'individual' ? 'Gói Cá nhân' : 'Gói Doanh nghiệp';
+  const planTitle = planType === 'individual' ? 'Gói Cá nhân' : 'Gói Giáo dục';
   const planDescription = planType === 'individual'
     ? 'Lựa chọn phù hợp cho người dùng cá nhân muốn sử dụng đầy đủ Signify theo từng chu kỳ.'
-    : 'Giải pháp cho doanh nghiệp cần quản lý tập trung tối đa 20 tài khoản và cấp quyền cho thành viên.';
+    : 'Giải pháp cho trường học quản lý giáo viên, học sinh, lớp và video bài học.';
 
   return (
     <div className="bg-background text-on-surface font-sans min-h-screen flex flex-col selection:bg-primary/20 selection:text-primary">
@@ -228,11 +228,11 @@ const ServicePackage: React.FC = () => {
                 Gói Cá nhân
               </button>
               <button
-                onClick={() => setPlanType('business')}
-                className={`inline-flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${planType === 'business' ? 'bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/30' : 'bg-surface-container-lowest border border-outline-variant/60 text-on-surface-variant hover:text-primary hover:border-primary/40 hover:-translate-y-0.5'}`}
+                onClick={() => setPlanType('education')}
+                className={`inline-flex items-center gap-2 px-4 sm:px-6 py-3 rounded-xl text-sm font-bold transition-all duration-300 ${planType === 'education' ? 'bg-gradient-to-r from-primary to-secondary text-white shadow-lg shadow-primary/30' : 'bg-surface-container-lowest border border-outline-variant/60 text-on-surface-variant hover:text-primary hover:border-primary/40 hover:-translate-y-0.5'}`}
               >
                 <Building2 className="w-4 h-4" />
-                Doanh nghiệp
+                Giáo dục
               </button>
             </div>
           </motion.div>
@@ -245,7 +245,7 @@ const ServicePackage: React.FC = () => {
             <p className="text-sm text-on-surface-variant font-medium mt-2">
               {planType === 'individual'
                 ? 'Chọn chu kỳ thanh toán phù hợp với nhu cầu cá nhân.'
-                : 'Chọn chu kỳ thanh toán phù hợp với quy mô doanh nghiệp.'}
+                : 'Chọn chu kỳ thanh toán phù hợp với quy mô trường học.'}
             </p>
           </div>
 
@@ -320,7 +320,7 @@ const ServicePackage: React.FC = () => {
         <section className="max-w-[1200px] mx-auto px-4 sm:px-6 py-10 mb-20">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-3xl font-extrabold mb-4 tracking-tight">So sánh tính năng</h2>
-            <p className="text-on-surface-variant text-base font-medium">Khám phá chi tiết quyền lợi giữa gói Cá nhân và gói Doanh nghiệp.</p>
+            <p className="text-on-surface-variant text-base font-medium">Khám phá chi tiết quyền lợi giữa gói Cá nhân và gói Giáo dục.</p>
           </div>
           <div className="overflow-hidden rounded-[24px] border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
             <div className="overflow-x-auto">
@@ -329,7 +329,7 @@ const ServicePackage: React.FC = () => {
                   <tr>
                     <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase">Tính năng</th>
                     <th className="p-5 text-xs font-bold text-primary tracking-wider uppercase text-center bg-primary/5 w-1/3">Gói Cá nhân</th>
-                    <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase text-center w-1/3">Doanh nghiệp</th>
+                    <th className="p-5 text-xs font-bold text-on-surface tracking-wider uppercase text-center w-1/3">Giáo dục</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40">
@@ -351,7 +351,7 @@ const ServicePackage: React.FC = () => {
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Quản lý thành viên</td>
                     <td className="p-5 text-sm font-bold text-center bg-primary/5 text-primary">Không</td>
-                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Có Admin doanh nghiệp</td>
+                    <td className="p-5 text-sm font-semibold text-center text-on-surface-variant">Có School Admin</td>
                   </tr>
                   <tr className="hover:bg-surface-container-low/50 transition-colors">
                     <td className="p-5 text-sm font-medium">Cập nhật tính năng mới</td>
@@ -375,7 +375,7 @@ const ServicePackage: React.FC = () => {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <button onClick={() => setPlanType('individual')} className="bg-surface-bright text-primary text-sm font-bold px-8 py-3.5 rounded-xl shadow-xl hover:bg-surface-container-highest transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Cá nhân</button>
-                <button onClick={() => setPlanType('business')} className="border border-on-primary/30 text-on-primary text-sm font-bold px-8 py-3.5 rounded-xl hover:bg-on-primary/10 transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Doanh nghiệp</button>
+                <button onClick={() => setPlanType('education')} className="border border-on-primary/30 text-on-primary text-sm font-bold px-8 py-3.5 rounded-xl hover:bg-on-primary/10 transition-all hover:-translate-y-0.5 active:scale-95">Xem gói Giáo dục</button>
               </div>
             </div>
           </div>

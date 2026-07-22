@@ -40,6 +40,7 @@ public class UserService {
             throw new RuntimeException("Mật khẩu hiện tại không đúng.");
         }
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
         userRepository.save(user);
     }
 

@@ -36,11 +36,11 @@ const PaymentPage: React.FC = () => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(600);
   const [status, setStatus] = useState<'success' | 'error' | 'cancel' | null>(routeStatus);
-  const [organizationName, setOrganizationName] = useState('');
-  const isBusinessPlan = selectedPlan?.planType === 'business';
+  const [schoolName, setSchoolName] = useState('');
+  const isEducationPlan = selectedPlan?.planType === 'education';
   const [paymentRequested, setPaymentRequested] = useState(false);
   const createPaymentStartedRef = useRef(false);
-  const canCreatePayment = !isBusinessPlan || organizationName.trim().length > 1;
+  const canCreatePayment = !isEducationPlan || schoolName.trim().length > 1;
 
   useEffect(() => {
     setStatus(routeStatus);
@@ -64,7 +64,7 @@ const PaymentPage: React.FC = () => {
       try {
         const response = await api.post('/payments/create-link', {
           packageId: selectedPlan.id || selectedPlan._id,
-          name: isBusinessPlan ? organizationName.trim() : selectedPlan.name,
+          name: isEducationPlan ? schoolName.trim() : selectedPlan.name,
         });
         setPaymentData(response.data);
         setTimeLeft(600);
@@ -82,7 +82,7 @@ const PaymentPage: React.FC = () => {
     };
 
     createPayment();
-  }, [selectedPlan, routeStatus, paymentData, loading, navigate, location, isBusinessPlan, paymentRequested, canCreatePayment, organizationName]);
+  }, [selectedPlan, routeStatus, paymentData, loading, navigate, location, isEducationPlan, paymentRequested, canCreatePayment, schoolName]);
 
   useEffect(() => {
     if (!paymentData || status || timeLeft <= 0) return;
@@ -126,7 +126,7 @@ const PaymentPage: React.FC = () => {
 
   useEffect(() => {
     if (status === 'success') {
-      const targetPath = selectedPlan?.planType === 'business' ? '/business' : '/profile';
+      const targetPath = selectedPlan?.planType === 'education' ? '/school' : '/profile';
       const timer = window.setTimeout(() => navigate(targetPath), 4000);
       return () => window.clearTimeout(timer);
     }
@@ -153,7 +153,7 @@ const PaymentPage: React.FC = () => {
 
   const handleStartPayment = () => {
     if (!canCreatePayment) {
-      setError('Vui lòng nhập tên doanh nghiệp trước khi tạo thanh toán.');
+      setError('Vui lòng nhập tên trường trước khi tạo thanh toán.');
       return;
     }
     setError(null);
@@ -254,7 +254,7 @@ const PaymentPage: React.FC = () => {
                   <Building2 className="w-4 h-4 text-primary" />
                   Loại gói
                 </div>
-                <p className="text-base font-bold text-on-surface">{isBusinessPlan ? 'Doanh nghiệp' : 'Cá nhân'}</p>
+                <p className="text-base font-bold text-on-surface">{isEducationPlan ? 'Giáo dục' : 'Cá nhân'}</p>
               </div>
             </div>
           </motion.section>
@@ -332,27 +332,27 @@ const PaymentPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="w-full max-w-md">
-                  {isBusinessPlan ? (
+                  {isEducationPlan ? (
                     <div className="text-left">
                       <div className="w-16 h-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-5">
                         <Building2 className="w-8 h-8" />
                       </div>
-                      <h2 className="text-2xl font-black tracking-tight mb-2">Thông tin doanh nghiệp</h2>
+                      <h2 className="text-2xl font-black tracking-tight mb-2">Thông tin trường học</h2>
                       <p className="text-sm font-medium text-on-surface-variant leading-relaxed mb-6">
-                        Nhập tên doanh nghiệp để Signify tạo workspace quản lý thành viên sau khi thanh toán thành công.
+                        Nhập tên trường để Signify tạo workspace giáo dục sau khi thanh toán thành công.
                       </p>
 
                       <label className="block text-xs font-black uppercase tracking-[0.16em] text-on-surface-variant mb-2">
-                        Tên doanh nghiệp
+                        Tên trường
                       </label>
                       <input
                         type="text"
-                        value={organizationName}
+                        value={schoolName}
                         onChange={(event) => {
-                          setOrganizationName(event.target.value);
+                          setSchoolName(event.target.value);
                           if (error) setError(null);
                         }}
-                        placeholder="Ví dụ: ABC Company"
+                        placeholder="Ví dụ: ABC school"
                         className="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-low px-4 py-3 text-sm font-bold text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:ring-4 focus:ring-primary/10 focus:border-primary/50 transition-all"
                       />
 
@@ -441,13 +441,13 @@ const PaymentPage: React.FC = () => {
                   </div>
                 </div>
 
-                {isBusinessPlan && (
+                {isEducationPlan && (
                   <div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 flex items-start gap-3">
                     <Building2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                     <div>
-                      <p className="text-xs font-black uppercase tracking-[0.16em] text-primary mb-1">Doanh nghiệp</p>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-primary mb-1">Giáo dục</p>
                       <p className="text-sm font-bold text-on-surface">
-                        {organizationName.trim() || 'Chưa nhập tên doanh nghiệp'}
+                        {schoolName.trim() || 'Chưa nhập tên trường'}
                       </p>
                     </div>
                   </div>
@@ -503,7 +503,7 @@ const PaymentPage: React.FC = () => {
               </h2>
               <p className="text-sm font-medium text-on-surface-variant leading-relaxed mb-6">
                 {status === 'success'
-                  ? selectedPlan?.planType === 'business' ? 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang doanh nghiệp.' : 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang hồ sơ.'
+                  ? selectedPlan?.planType === 'education' ? 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang trường học.' : 'Gói dịch vụ đã được kích hoạt. Hệ thống sẽ chuyển bạn về trang hồ sơ.'
                   : status === 'cancel'
                     ? 'Giao dịch đã được hủy. Hệ thống sẽ chuyển bạn về trang gói dịch vụ.'
                     : error || 'Có lỗi xảy ra trong quá trình thanh toán. Hệ thống sẽ chuyển bạn về trang gói dịch vụ.'}

@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { GoogleLogin } from '@react-oauth/google';
-import { CheckCircle2, Shield, Eye, EyeOff } from 'lucide-react';
+import { CheckCircle2, Eye, EyeOff } from 'lucide-react';
 import api from '../services/api';
+import { getMySchool } from '../services/schoolService';
 import { setLogin } from '../store/authSlice';
 import { useToast } from '../context/ToastContext';
 
@@ -17,12 +18,23 @@ const AuthPage = () => {
   const rawRedirect = searchParams.get('redirect');
   const redirectPath = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '';
   const redirectQuery = redirectPath ? `?redirect=${encodeURIComponent(redirectPath)}` : '';
-  const isInviteRedirect = redirectPath.startsWith('/accept-invite/');
-  const navigateAfterAuth = (user: any) => {
-    if (isInviteRedirect) {
+  const navigateAfterAuth = async (user: any) => {
+    if (redirectPath) {
       localStorage.removeItem('pendingInviteRedirect');
+      navigate(redirectPath);
+      return;
     }
-    navigate(redirectPath || (user.role === 'ADMIN' ? '/admin' : '/'));
+    if (user.role === 'TEACHER') {
+      try {
+        const school = await getMySchool();
+        navigate(school.role === 'TEACHER' ? '/teacher' : '/');
+      } catch {
+        navigate('/');
+      }
+      return;
+    }
+    const destinations: Record<string, string> = { ADMIN: '/admin', SCHOOL_ADMIN: '/school', STUDENT: '/my-lessons' };
+    navigate(destinations[user.role] || '/');
   };
 
   const [isSignIn, setIsSignIn] = useState(location.pathname !== '/register');
@@ -31,17 +43,12 @@ const AuthPage = () => {
     setIsSignIn(location.pathname !== '/register');
   }, [location.pathname]);
 
-  useEffect(() => {
-    if (isInviteRedirect) {
-      localStorage.setItem('pendingInviteRedirect', redirectPath);
-    }
-  }, [isInviteRedirect, redirectPath]);
-
   const [signInEmail, setSignInEmail] = useState('');
   const [signInPassword, setSignInPassword] = useState('');
   const [signUpName, setSignUpName] = useState('');
   const [signUpEmail, setSignUpEmail] = useState('');
   const [signUpPassword, setSignUpPassword] = useState('');
+  const [signUpConfirmPassword, setSignUpConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
 
@@ -60,7 +67,7 @@ const AuthPage = () => {
       localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
       showToast('Chào mừng trở lại, ' + user.fullName + '!', 'success');
-      navigateAfterAuth(user);
+      await navigateAfterAuth(user);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Đăng nhập Google thất bại.';
       setError(msg);
@@ -76,14 +83,14 @@ const AuthPage = () => {
     setError('');
     try {
       const response = await api.post('/users/login', {
-        email: signInEmail,
+        identifier: signInEmail,
         password: signInPassword,
       });
       const { token, ...user } = response.data;
       localStorage.setItem('token', token);
       dispatch(setLogin({ user, token }));
       showToast('Đăng nhập thành công!', 'success');
-      navigateAfterAuth(user);
+      await navigateAfterAuth(user);
     } catch (err: any) {
       const msg = err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra thông tin đăng nhập.';
       setError(msg);
@@ -97,7 +104,16 @@ const AuthPage = () => {
     e.preventDefault();
     setLoading(true);
     setError('');
+    if (signUpPassword !== signUpConfirmPassword) {
+      const msg = 'Mật khẩu nhập lại không khớp.';
+      setError(msg);
+      showToast(msg, 'error');
+      setLoading(false);
+      return;
+    }
+
     try {
+      if (redirectPath) localStorage.setItem('pendingInviteRedirect', redirectPath);
       await api.post('/users/register', {
         fullName: signUpName,
         email: signUpEmail,
@@ -201,13 +217,6 @@ const AuthPage = () => {
                   </p>
                 </div>
 
-                {isInviteRedirect && (
-                  <div className="mb-4 p-3 bg-primary/5 text-primary rounded-lg text-xs border border-primary/15 flex items-start gap-2">
-                    <Shield className="w-4 h-4 shrink-0 mt-0.5" />
-                    <span className="leading-relaxed">Bạn đang mở lời mời doanh nghiệp. Hãy đăng nhập bằng email được mời, hoặc đăng ký nếu chưa có tài khoản Signify.</span>
-                  </div>
-                )}
-
                 {error && (
                   <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-xs border border-red-100 flex items-start gap-2">
                     <span className="material-symbols-outlined text-red-500 text-base leading-none">error</span>
@@ -246,6 +255,7 @@ const AuthPage = () => {
                         value={signUpName}
                         onChange={(e) => setSignUpName(e.target.value)}
                         placeholder="Nguyễn Văn A"
+                        autoComplete="name"
                         required
                         className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
@@ -253,12 +263,13 @@ const AuthPage = () => {
                   )}
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Địa chỉ email</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">{isSignIn ? 'Email hoặc mã đăng nhập' : 'Địa chỉ email'}</label>
                     <input
-                      type="email"
+                      type={isSignIn ? 'text' : 'email'}
                       value={isSignIn ? signInEmail : signUpEmail}
                       onChange={(e) => isSignIn ? setSignInEmail(e.target.value) : setSignUpEmail(e.target.value)}
-                      placeholder="email@example.com"
+                      placeholder={isSignIn ? 'email@example.com hoặc HS-XXXXXXXX' : 'email@example.com'}
+                      autoComplete={isSignIn ? 'username' : 'email'}
                       required
                       className="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                     />
@@ -272,6 +283,7 @@ const AuthPage = () => {
                         value={isSignIn ? signInPassword : signUpPassword}
                         onChange={(e) => isSignIn ? setSignInPassword(e.target.value) : setSignUpPassword(e.target.value)}
                         placeholder="Nhập mật khẩu"
+                        autoComplete={isSignIn ? "current-password" : "new-password"}
                         required
                         className="w-full bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
                       />
@@ -284,6 +296,23 @@ const AuthPage = () => {
                       </button>
                     </div>
                   </div>
+
+                  {!isSignIn && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Nhập lại mật khẩu</label>
+                      <div className="relative">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={signUpConfirmPassword}
+                          onChange={(e) => setSignUpConfirmPassword(e.target.value)}
+                          placeholder="Nhập lại mật khẩu"
+                          autoComplete="new-password"
+                          required
+                          className="w-full bg-white border border-slate-200 rounded-xl pl-3.5 pr-10 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {isSignIn && (
                     <div className="flex items-center justify-between pt-1">

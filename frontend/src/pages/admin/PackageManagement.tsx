@@ -21,7 +21,7 @@ const PackageManagement = () => {
     planType: 'individual'
   });
 
-  const [activeTab, setActiveTab] = useState<'all' | 'individual' | 'business'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'individual' | 'education'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'price' | 'date'>('date');
   const [isSortOpen, setIsSortOpen] = useState(false);
@@ -159,14 +159,14 @@ const PackageManagement = () => {
             Individual
           </button>
           <button
-            onClick={() => setActiveTab('business')}
+            onClick={() => setActiveTab('education')}
             className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-              activeTab === 'business'
+              activeTab === 'education'
                 ? 'bg-white text-[#2563EB] shadow-md shadow-[#2563EB]/5'
                 : 'text-slate-400 hover:text-slate-600'
             }`}
           >
-            Business
+            Education
           </button>
         </div>
 
@@ -278,7 +278,7 @@ const PackageManagement = () => {
               <div className="flex items-center gap-3 mb-2 flex-wrap">
                 <h3 className="text-2xl font-black text-slate-900 tracking-tight">{pkg.name}</h3>
                 <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                  pkg.planType === 'business' 
+                  pkg.planType === 'education'
                     ? 'bg-purple-50 text-[#8B5CF6] border border-purple-100' 
                     : 'bg-blue-50 text-[#2563EB] border border-blue-100'
                 }`}>
@@ -413,14 +413,14 @@ const PackageManagement = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => setNewPackage({ ...newPackage, planType: 'business' })}
+                          onClick={() => setNewPackage({ ...newPackage, planType: 'education' })}
                           className={`py-3 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                            newPackage.planType === 'business'
+                            newPackage.planType === 'education'
                               ? 'bg-white text-[#2563EB] shadow-md shadow-[#2563EB]/5 border border-slate-100'
                               : 'text-slate-400 hover:text-slate-600'
                           }`}
                         >
-                          Business
+                          Education
                         </button>
                       </div>
                     </div>

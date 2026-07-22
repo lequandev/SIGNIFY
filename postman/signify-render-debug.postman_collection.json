@@ -1,0 +1,225 @@
+{
+  "info": {
+    "_postman_id": "94bfb8be-6b0f-4f2d-b695-signify-debug",
+    "name": "Signify Render Debug",
+    "description": "Use this collection to verify that requests include the backend /api prefix on Render.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://signify-g3zb.onrender.com"
+    },
+    {
+      "key": "frontend_url",
+      "value": "https://signify-g3zb.onrender.com"
+    },
+    {
+      "key": "email",
+      "value": "your-email@example.com"
+    },
+    {
+      "key": "password",
+      "value": "your-password"
+    },
+    {
+      "key": "google_credential",
+      "value": "paste-google-id-token-here"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 - Packages - correct backend URL",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/v1/service-packages",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "service-packages"
+          ]
+        },
+        "description": "Expected: 200 OK with the package list. If this is 404, the URL is missing /api or the deployed backend is outdated."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('returns 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 - Packages - frontend URL should be wrong",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{frontend_url}}/v1/service-packages",
+          "host": [
+            "{{frontend_url}}"
+          ],
+          "path": [
+            "v1",
+            "service-packages"
+          ]
+        },
+        "description": "Expected: 404. This is the wrong URL currently shown in the browser console."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('wrong frontend API URL returns 404', function () {",
+              "  pm.response.to.have.status(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "login"
+          ]
+        },
+        "description": "Expected: 200 OK and a token for a valid verified user. The test saves response.data.token or response.token into the token variable."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('login request is not 404', function () {",
+              "  pm.expect(pm.response.code).to.not.equal(404);",
+              "});",
+              "",
+              "if (pm.response.code === 200) {",
+              "  const json = pm.response.json();",
+              "  const token = json.token || (json.data && json.data.token);",
+              "  if (token) pm.collectionVariables.set('token', token);",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 - My Subscription",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/api/v1/subscriptions/me",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "subscriptions",
+            "me"
+          ]
+        },
+        "description": "Expected: 200 OK after Login saves a token. Without token, expected: 401."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('subscription route exists', function () {",
+              "  pm.expect(pm.response.code).to.not.equal(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 - Google Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"credential\": \"{{google_credential}}\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/google-login",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "users",
+            "google-login"
+          ]
+        },
+        "description": "Expected with a real Google ID token: 200 OK. If the credential is fake/expired, expected: 401, not 404."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('google-login route exists', function () {",
+              "  pm.expect(pm.response.code).to.not.equal(404);",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

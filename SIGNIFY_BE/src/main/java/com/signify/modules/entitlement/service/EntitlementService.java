@@ -1,7 +1,7 @@
 package com.signify.modules.entitlement.service;
 
-import com.signify.modules.business.dto.response.BusinessEntitlementContext;
-import com.signify.modules.business.service.BusinessService;
+import com.signify.modules.school.dto.response.SchoolEntitlementContext;
+import com.signify.modules.school.service.SchoolService;
 import com.signify.modules.entitlement.dto.EntitlementResponse;
 import com.signify.modules.entitlement.model.DailyUsage;
 import com.signify.modules.entitlement.repository.DailyUsageRepository;
@@ -25,18 +25,18 @@ public class EntitlementService {
     private final SubscriptionService subscriptionService;
     private final ServicePackageRepository servicePackageRepository;
     private final DailyUsageRepository dailyUsageRepository;
-    private final BusinessService businessService;
+    private final SchoolService schoolService;
 
     public EntitlementResponse getEntitlement(String userId) {
         DailyUsage todayUsage = getTodayUsage(userId);
         int usedMinutes = secondsToRoundedMinutes(todayUsage.getUsedSeconds());
 
-        Optional<BusinessEntitlementContext> businessContext = businessService.getActiveBusinessEntitlement(userId);
-        if (businessContext.isPresent()) {
-            BusinessEntitlementContext context = businessContext.get();
+        Optional<SchoolEntitlementContext> schoolContext = schoolService.getActiveSchoolEntitlement(userId);
+        if (schoolContext.isPresent()) {
+            SchoolEntitlementContext context = schoolContext.get();
             return EntitlementResponse.builder()
-                    .plan(BusinessService.ROLE_BUSINESS_ADMIN.equals(context.getMembership().getRole()) ? "BUSINESS_ADMIN" : "BUSINESS_MEMBER")
-                    .planType("business")
+                    .plan("SCHOOL_" + context.getMembership().getRole())
+                    .planType("education")
                     .packageName(context.getServicePackage().getName())
                     .fullFeatures(true)
                     .unlimited(true)
@@ -44,7 +44,7 @@ public class EntitlementService {
                     .usedMinutesToday(usedMinutes)
                     .remainingMinutesToday(null)
                     .expiresAt(context.getSubscription().getEndDate())
-                    .organizationName(context.getOrganization().getName())
+                    .organizationName(context.getSchool().getName())
                     .build();
         }
 
@@ -54,7 +54,7 @@ public class EntitlementService {
             ServicePackage servicePackage = servicePackageRepository.findById(subscription.getPackageId()).orElse(null);
             String planType = servicePackage != null ? servicePackage.getPlanType() : null;
 
-            if (!"business".equals(planType)) {
+            if (!SchoolService.isSchoolPlan(planType)) {
                 String packageName = servicePackage != null ? servicePackage.getName() : "Gói đang hoạt động";
                 Boolean fullFeatures = servicePackage == null || servicePackage.getFullFeatures() == null || servicePackage.getFullFeatures();
 

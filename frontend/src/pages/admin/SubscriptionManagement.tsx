@@ -42,7 +42,7 @@ const statusClass = (status?: string) => {
 };
 
 const planTypeClass = (planType?: string | null) => (
-  planType === 'business'
+  planType === 'education'
     ? 'bg-violet-50 text-violet-600'
     : 'bg-blue-50 text-blue-600'
 );
@@ -51,7 +51,7 @@ const SubscriptionManagement: React.FC = () => {
   const [subscriptions, setSubscriptions] = useState<AdminSubscription[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'individual' | 'business'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'individual' | 'education'>('all');
 
   useEffect(() => {
     const fetchSubscriptions = async () => {
@@ -81,15 +81,15 @@ const SubscriptionManagement: React.FC = () => {
   }, [subscriptions, activeFilter, searchTerm]);
 
   const activeCount = subscriptions.filter(item => item.status === 'ACTIVE').length;
-  const businessCount = subscriptions.filter(item => item.planType === 'business').length;
-  const individualCount = subscriptions.filter(item => item.planType !== 'business').length;
+  const educationCount = subscriptions.filter(item => item.planType === 'education').length;
+  const individualCount = subscriptions.filter(item => item.planType !== 'education').length;
 
   return (
     <div className="space-y-10">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex flex-col gap-2">
           <h1 className="text-4xl font-black text-slate-900 tracking-tight">Subscription Management</h1>
-          <p className="text-slate-500 font-medium">Monitor active, expired, individual, and business subscriptions.</p>
+          <p className="text-slate-500 font-medium">Monitor active, expired, individual, and education subscriptions.</p>
         </div>
 
         <div className="relative group w-full md:w-96">
@@ -107,12 +107,12 @@ const SubscriptionManagement: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
         <StatCard icon={<Package className="w-5 h-5" />} label="Total" value={subscriptions.length} />
         <StatCard icon={<Shield className="w-5 h-5" />} label="Active" value={activeCount} />
-        <StatCard icon={<Users className="w-5 h-5" />} label="Business" value={businessCount} />
+        <StatCard icon={<Users className="w-5 h-5" />} label="Education" value={educationCount} />
         <StatCard icon={<User className="w-5 h-5" />} label="Individual" value={individualCount} />
       </div>
 
       <div className="flex flex-wrap gap-2 bg-white p-2 rounded-[2rem] border border-slate-100 shadow-sm w-fit">
-        {(['all', 'individual', 'business'] as const).map(filter => (
+        {(['all', 'individual', 'education'] as const).map(filter => (
           <button
             key={filter}
             onClick={() => setActiveFilter(filter)}
@@ -122,7 +122,7 @@ const SubscriptionManagement: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-700 hover:bg-slate-50'
             }`}
           >
-            {filter === 'all' ? 'All' : filter === 'individual' ? 'Individual' : 'Business'}
+            {filter === 'all' ? 'All' : filter === 'individual' ? 'Individual' : 'Education'}
           </button>
         ))}
       </div>
