@@ -3,19 +3,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const beStatus = document.getElementById('be-status');
   const toggleBtn = document.getElementById('toggle-overlay');
 
-  function checkBackendHealth(port) {
+  const BACKEND_URL = "http://localhost:8080";
+
+  function checkBackendHealth() {
     beStatus.textContent = 'Đang kiểm tra...';
     beStatus.className = 'badge checking';
 
-    fetch(`http://127.0.0.1:${port}/api/ai/dictionary-lookup`, {
+    fetch(`${BACKEND_URL}/api/ai/dictionary-lookup`, {
       method: 'OPTIONS'
     }).then(() => {
-      beStatus.textContent = `Kết nối (${port})`;
+      beStatus.textContent = 'Kết nối';
       beStatus.className = 'badge active';
     }).catch(() => {
       // Attempt GET ping to root in case options check is blocked
-      fetch(`http://127.0.0.1:${port}/`).then(() => {
-        beStatus.textContent = `Kết nối (${port})`;
+      fetch(`${BACKEND_URL}/`).then(() => {
+        beStatus.textContent = 'Kết nối';
         beStatus.className = 'badge active';
       }).catch(() => {
         beStatus.textContent = 'Ngoại tuyến';
@@ -24,11 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Get active port from background
-  chrome.runtime.sendMessage({ action: "get_active_port" }, (response) => {
-    const port = response?.port || "8080";
-    checkBackendHealth(port);
-  });
+  checkBackendHealth();
 
   // 2. Detect active tab and YouTube Watch Page status
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

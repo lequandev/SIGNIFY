@@ -12,16 +12,24 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
+import org.springframework.data.mongodb.core.MongoTemplate;
+
 @Configuration
 @RequiredArgsConstructor
 @Slf4j
 public class DataSeeder implements CommandLineRunner {
 
     private final ServicePackageRepository servicePackageRepository;
+    private final MongoTemplate mongoTemplate;
 
     @Override
     public void run(String... args) {
-        log.info("Syncing default service packages...");
+        log.info("Syncing default service packages and MongoDB collections...");
+
+        if (!mongoTemplate.collectionExists("youtube_videos")) {
+            mongoTemplate.createCollection("youtube_videos");
+            log.info("Collection 'youtube_videos' created automatically on startup.");
+        }
 
         List<ServicePackage> defaults = Arrays.asList(
                 personalPackage(

@@ -6,7 +6,7 @@ services:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: MONGODB_URI
-        value: mongodb+srv://luongtk390_db_user:qIegQUXZ5xL0aR0r@signify-cluster.bgcnwfj.mongodb.net/signify?retryWrites=true&w=majority
+        value: mongodb+srv://user:signify123@signify-cluster.bgcnwfj.mongodb.net/signify?retryWrites=true&w=majority
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: FRONTEND_URL

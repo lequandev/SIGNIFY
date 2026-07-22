@@ -7,6 +7,7 @@ import {
   Users,
   Package,
   CreditCard,
+  Video,
   LogOut,
   ChevronRight,
   ChevronLeft,
@@ -28,6 +29,7 @@ const AdminSidebar: React.FC<AdminSidebarProps> = ({ isCollapsed, setIsCollapsed
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Overview', path: '/admin' },
+    { icon: Video, label: 'YouTube Videos', path: '/admin/videos' },
     { icon: Users, label: 'Users', path: '/admin/users' },
     { icon: Package, label: 'Packages', path: '/admin/packages' },
     { icon: CreditCard, label: 'Subscriptions', path: '/admin/subscriptions' },

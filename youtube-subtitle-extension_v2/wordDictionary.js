@@ -103,7 +103,7 @@ function mapWordToAnimation(word) {
   if (!cleanWord || VIETNAMESE_STOPWORDS.has(cleanWord)) return null;
   
   const cleanWordNoAccents = stripVietnameseAccents(cleanWord).replace(/\s+/g, "-");
-  return `http://127.0.0.1:8080/assets/animations/${cleanWordNoAccents}.mp4`;
+  return `http://localhost:8080/assets/animations/${cleanWordNoAccents}.mp4`;
 }
 
 // Main function to process subtitle locally

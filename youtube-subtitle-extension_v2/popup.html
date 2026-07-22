@@ -45,17 +45,17 @@
     }
 
     .logo-container {
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
       width: 32px;
       height: 32px;
-      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 700;
-      font-size: 18px;
-      color: white;
-      box-shadow: 0 0 15px rgba(99, 102, 241, 0.5);
+    }
+
+    .logo-container img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
     }
 
     .title {
@@ -149,7 +149,7 @@
 <body>
   <div class="container">
     <div class="header">
-      <div class="logo-container">S</div>
+      <div class="logo-container"><img src="icons/logo.png" alt="Signify"></div>
       <div class="title">SIGNIFY</div>
     </div>
     <div class="status-group">

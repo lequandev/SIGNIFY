@@ -15,6 +15,7 @@ import DashboardOverview from '../pages/admin/DashboardOverview';
 import UserManagement from '../pages/admin/UserManagement';
 import PackageManagement from '../pages/admin/PackageManagement';
 import SubscriptionManagement from '../pages/admin/SubscriptionManagement';
+import VideoManagement from '../pages/admin/VideoManagement';
 
 export const router = createBrowserRouter([
   {
@@ -80,6 +81,10 @@ export const router = createBrowserRouter([
       {
         index: true,
         element: <DashboardOverview />,
+      },
+      {
+        path: 'videos',
+        element: <VideoManagement />,
       },
       {
         path: 'users',

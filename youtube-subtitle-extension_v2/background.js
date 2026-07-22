@@ -1,49 +1,26 @@
 // Signify Chrome Extension - Background Service Worker
 console.log("Signify Background Service Worker initialized!");
 
-let activePort = "8080";
+// Production backend URL (Render). Change this if the backend is redeployed elsewhere.
+const BACKEND_URL = "http://localhost:8080";
 
-async function detectActivePort() {
-  const ports = ["8080", "8081"];
-  for (const port of ports) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000);
-      const res = await fetch(`http://127.0.0.1:${port}/api/ai/dictionary-lookup`, {
-        method: 'OPTIONS',
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      activePort = port;
-      console.log("Detected active Signify backend port:", port);
-      chrome.storage.local.set({ backendPort: port });
-      return port;
-    } catch (e) {
-      // Ignore and try next
-    }
+// Health-check the backend. Returns true if reachable.
+async function checkBackendHealth() {
+  try {
+    const controller = new AbortController();
+    // Render free tier can cold-start (~50s), so allow a generous timeout.
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
+    const res = await fetch(`${BACKEND_URL}/api/ai/dictionary-lookup`, {
+      method: 'OPTIONS',
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return true;
+  } catch (e) {
+    console.warn("Backend health-check failed:", e);
+    return false;
   }
-  for (const port of ports) {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1000);
-      const res = await fetch(`http://127.0.0.1:${port}/`, {
-        signal: controller.signal
-      });
-      clearTimeout(timeoutId);
-      activePort = port;
-      console.log("Detected active Signify backend port via root:", port);
-      chrome.storage.local.set({ backendPort: port });
-      return port;
-    } catch (e) {
-      // Ignore
-    }
-  }
-  chrome.storage.local.set({ backendPort: "8080" });
-  return "8080";
 }
-
-// Call on startup
-detectActivePort();
 
 // Safe chunked converter from ArrayBuffer to Base64 (immune to call stack size limits)
 function arrayBufferToBase64(buffer) {
@@ -75,9 +52,9 @@ async function convertUrlToBase64(url) {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  // Sync the port check if requested
+  // Backend health-check if requested
   if (message.action === "get_active_port") {
-    detectActivePort().then(port => sendResponse({ port: port }));
+    checkBackendHealth().then(online => sendResponse({ online: online, backendUrl: BACKEND_URL }));
     return true;
   }
 
@@ -111,27 +88,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Cào transcript qua backend (không cần bật CC). Backend tự đọc trang YouTube,
   // lấy caption track và parse thành các đoạn { start, end, text } (ms).
   if (message.action === "fetch_youtube_transcript") {
-    chrome.storage.local.get("backendPort", (data) => {
-      const port = data.backendPort || activePort;
-      const videoId = message.videoId;
-      const url = `http://127.0.0.1:${port}/api/ai/youtube-transcript?videoId=${encodeURIComponent(videoId)}`;
-      console.log("Background fetching transcript from backend:", url);
+    const videoId = message.videoId;
+    const url = `${BACKEND_URL}/api/ai/youtube-transcript?videoId=${encodeURIComponent(videoId)}`;
+    console.log("Background fetching transcript from backend:", url);
 
-      fetch(url, { method: 'GET' })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`HTTP error! Status: ${response.status}`);
-          }
-          return response.json();
-        })
-        .then(data => {
-          sendResponse({ success: true, data: data });
-        })
-        .catch(err => {
-          console.error("Background transcript fetch failed:", err);
-          sendResponse({ success: false, error: err.toString() });
-        });
-    });
+    fetch(url, { method: 'GET' })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        sendResponse({ success: true, data: data });
+      })
+      .catch(err => {
+        console.error("Background transcript fetch failed:", err);
+        sendResponse({ success: false, error: err.toString() });
+      });
     return true; // Keep channel open
   }
 
@@ -225,8 +199,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "usage_session_start") {
-    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
-      const port = data.backendPort || activePort;
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
       const token = data.signifyAuthToken;
 
       if (!token) {
@@ -239,7 +212,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/start`, {
+      fetch(`${BACKEND_URL}/api/v1/usage-sessions/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -268,8 +241,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "usage_session_heartbeat") {
-    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
-      const port = data.backendPort || activePort;
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
       const token = data.signifyAuthToken;
 
       if (!token) {
@@ -277,7 +249,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/heartbeat`, {
+      fetch(`${BACKEND_URL}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/heartbeat`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -302,8 +274,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.action === "usage_session_end") {
-    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
-      const port = data.backendPort || activePort;
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
       const token = data.signifyAuthToken;
 
       if (!token || !message.sessionId) {
@@ -311,7 +282,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      fetch(`http://127.0.0.1:${port}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/end`, {
+      fetch(`${BACKEND_URL}/api/v1/usage-sessions/${encodeURIComponent(message.sessionId)}/end`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` }
       })
@@ -330,11 +301,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "fetch_dictionary_lookup") {
     console.log("Background received dictionary lookup request:", message.requestData);
 
-    // Get port and auth token from local storage or memory
-    chrome.storage.local.get(["backendPort", "signifyAuthToken"], (data) => {
-      const port = data.backendPort || activePort;
+    // Get auth token from local storage
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
       const token = data.signifyAuthToken;
-      console.log(`Using backend port ${port} for lookup`);
 
       if (!token) {
         sendResponse({
@@ -345,7 +314,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       }
 
-      fetch(`http://127.0.0.1:${port}/api/ai/dictionary-lookup`, {
+      fetch(`${BACKEND_URL}/api/ai/dictionary-lookup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -376,5 +345,145 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
 
     return true;
+  }
+
+  if (message.action === "get_video_info") {
+    const videoId = message.videoId;
+    console.log(`📡 [Signify BG] Nhận yêu cầu GET video info cho videoId: ${videoId}`);
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const url = `${BACKEND_URL}/api/youtube/video-info/${encodeURIComponent(videoId)}`;
+      console.log(`🌐 [Signify BG] Đang gửi GET request đến BE: ${url}`);
+
+      fetch(url, {
+        method: 'GET',
+        headers: headers
+      })
+        .then(async (res) => {
+          if (res.status === 404) {
+            console.log(`⚠️ [Signify BG] VideoId '${videoId}' chưa có dữ liệu trên BE (404 Not Found)`);
+            sendResponse({ success: false, notFound: true });
+            return;
+          }
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn(`❌ [Signify BG] BE trả lỗi khi GET video info (${res.status}):`, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log(`✅ [Signify BG] Kết quả GET video info thành công cho videoId '${videoId}':`, resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error(`❌ [Signify BG] Lỗi kết nối khi GET video info:`, err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true;
+  }
+
+  if (message.action === "save_video_info") {
+    const videoData = message.data || {};
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const url = `${BACKEND_URL}/api/youtube/video-info`;
+      console.log("Sending video info to backend:", url, videoData);
+
+      fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(videoData)
+      })
+        .then(async (res) => {
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn("Save video info backend response non-200:", res.status, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log("✅ Video info successfully saved on backend:", resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error("Save video info request failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FULL SIGN SEQUENCE — Lưu duy nhất signLanguageText lên BE
+  // ═══════════════════════════════════════════════════════════════════
+  //
+  // Được gọi từ content.js 1 LẦN DUY NHẤT khi user chuyển sang video khác.
+  // Lúc đó mảng fullSignSequence đã tích lũy đầy đủ → ghép các `word` ngăn
+  // cách bằng dấu phẩy ", " → gửi duy nhất trường `signLanguageText` lên BE.
+  //
+  // ─── API Contract cho BE ───────────────────────────────────────────
+  //
+  //   POST /api/ai/sign-sequence
+  //   Authorization: Bearer <token>    (optional nếu user chưa đăng nhập)
+  //   Content-Type: application/json
+  //
+  // ─── Request Body ──────────────────────────────────────────────────
+  //
+  //   {
+  //     "signLanguageText": "thi, môn cua, cấp trường, ra, động viên, bạn ấy, buồn, hôm nay, đạt giải, mọi người, kỳ vọng, tớ, làm thất vọng, bố mẹ, thầy cô, các bạn, cố gắng, đừng tự trách, đi về, cùng chúng mình, thật tuyệt, cảm ơn, ấn thích, chia sẻ, bấm nút, đăng ký kênh, xem, video mới nhất"
+  //   }
+  //
+  // ─── Response mong đợi (200 OK) ────────────────────────────────────
+  //
+  //   { "success": true, "message": "Saved successfully" }
+  // ═══════════════════════════════════════════════════════════════════
+  if (message.action === "send_full_sign_sequence") {
+    const sequenceData = message.data || {};
+    console.log(
+      `📚 [Signify BG] Nhận fullSignSequence từ content.js:`,
+      `videoId=${sequenceData.videoId},`,
+      `tổng ${(sequenceData.fullSignSequence || []).length} ký hiệu`
+    );
+
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      fetch(`${BACKEND_URL}/api/ai/sign-sequence`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(sequenceData)
+      })
+        .then(async (res) => {
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn("[Signify BG] sign-sequence BE trả lỗi:", res.status, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log("✅ [Signify BG] fullSignSequence saved on BE:", resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error("[Signify BG] send_full_sign_sequence request failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true; // Keep message channel open for async response
   }
 });

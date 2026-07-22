@@ -10,23 +10,33 @@
     "scripting"
   ],
   "host_permissions": [
+    "https://signify-g3zb.onrender.com/*",
+    "https://signify-i3rd.onrender.com/*",
     "http://localhost:5173/*",
     "http://127.0.0.1:5173/*",
     "http://localhost:8080/*",
     "http://127.0.0.1:8080/*",
-    "http://localhost:8081/*",
-    "http://127.0.0.1:8081/*",
     "*://*.youtube.com/*",
     "*://*.googlevideo.com/*",
     "*://*.googleapis.com/*",
     "https://www.googleapis.com/*"
   ],
+  "icons": {
+    "16": "icons/logo.png",
+    "48": "icons/logo.png",
+    "128": "icons/logo.png"
+  },
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/logo.png",
+      "48": "icons/logo.png",
+      "128": "icons/logo.png"
+    }
   },
   "web_accessible_resources": [
     {
-      "resources": ["inject.js", "wordDictionary.js", "vietnameseCompoundWords.json"],
+      "resources": ["inject.js", "wordDictionary.js", "vietnameseCompoundWords.json", "icons/logo.png"],
       "matches": ["*://*.youtube.com/*"]
     }
   ],
@@ -35,7 +45,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+      "matches": ["https://signify-i3rd.onrender.com/*", "http://localhost:5173/*", "http://127.0.0.1:5173/*"],
       "js": ["auth-sync.js"],
       "run_at": "document_idle"
     },
