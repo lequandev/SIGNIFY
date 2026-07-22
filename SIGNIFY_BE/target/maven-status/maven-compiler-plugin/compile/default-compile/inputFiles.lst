@@ -101,4 +101,11 @@ E:\semester_8\EXE201\main\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\u
 E:\semester_8\EXE201\main\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\user\model\User.java
 E:\semester_8\EXE201\main\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\user\repository\UserRepository.java
 E:\semester_8\EXE201\main\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\user\service\UserService.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\controller\YoutubeController.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\dto\SaveScriptsRequest.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\dto\SaveVideoInfoRequest.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\dto\VideoInfoResponse.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\model\YoutubeVideo.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\repository\YoutubeVideoRepository.java
+D:\EXE\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\modules\youtube\service\YoutubeVideoService.java
 E:\semester_8\EXE201\main\SIGNIFY\SIGNIFY_BE\src\main\java\com\signify\SignifyBeApplication.java

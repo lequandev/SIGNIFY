@@ -2,7 +2,7 @@
 console.log("Signify Background Service Worker initialized!");
 
 // Production backend URL (Render). Change this if the backend is redeployed elsewhere.
-const BACKEND_URL = "https://signify-g3zb.onrender.com";
+const BACKEND_URL = "http://localhost:8080";
 
 // Health-check the backend. Returns true if reachable.
 async function checkBackendHealth() {
@@ -345,5 +345,145 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
 
     return true;
+  }
+
+  if (message.action === "get_video_info") {
+    const videoId = message.videoId;
+    console.log(`📡 [Signify BG] Nhận yêu cầu GET video info cho videoId: ${videoId}`);
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = {};
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const url = `${BACKEND_URL}/api/youtube/video-info/${encodeURIComponent(videoId)}`;
+      console.log(`🌐 [Signify BG] Đang gửi GET request đến BE: ${url}`);
+
+      fetch(url, {
+        method: 'GET',
+        headers: headers
+      })
+        .then(async (res) => {
+          if (res.status === 404) {
+            console.log(`⚠️ [Signify BG] VideoId '${videoId}' chưa có dữ liệu trên BE (404 Not Found)`);
+            sendResponse({ success: false, notFound: true });
+            return;
+          }
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn(`❌ [Signify BG] BE trả lỗi khi GET video info (${res.status}):`, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log(`✅ [Signify BG] Kết quả GET video info thành công cho videoId '${videoId}':`, resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error(`❌ [Signify BG] Lỗi kết nối khi GET video info:`, err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true;
+  }
+
+  if (message.action === "save_video_info") {
+    const videoData = message.data || {};
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const url = `${BACKEND_URL}/api/youtube/video-info`;
+      console.log("Sending video info to backend:", url, videoData);
+
+      fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(videoData)
+      })
+        .then(async (res) => {
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn("Save video info backend response non-200:", res.status, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log("✅ Video info successfully saved on backend:", resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error("Save video info request failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FULL SIGN SEQUENCE — Lưu duy nhất signLanguageText lên BE
+  // ═══════════════════════════════════════════════════════════════════
+  //
+  // Được gọi từ content.js 1 LẦN DUY NHẤT khi user chuyển sang video khác.
+  // Lúc đó mảng fullSignSequence đã tích lũy đầy đủ → ghép các `word` ngăn
+  // cách bằng dấu phẩy ", " → gửi duy nhất trường `signLanguageText` lên BE.
+  //
+  // ─── API Contract cho BE ───────────────────────────────────────────
+  //
+  //   POST /api/ai/sign-sequence
+  //   Authorization: Bearer <token>    (optional nếu user chưa đăng nhập)
+  //   Content-Type: application/json
+  //
+  // ─── Request Body ──────────────────────────────────────────────────
+  //
+  //   {
+  //     "signLanguageText": "thi, môn cua, cấp trường, ra, động viên, bạn ấy, buồn, hôm nay, đạt giải, mọi người, kỳ vọng, tớ, làm thất vọng, bố mẹ, thầy cô, các bạn, cố gắng, đừng tự trách, đi về, cùng chúng mình, thật tuyệt, cảm ơn, ấn thích, chia sẻ, bấm nút, đăng ký kênh, xem, video mới nhất"
+  //   }
+  //
+  // ─── Response mong đợi (200 OK) ────────────────────────────────────
+  //
+  //   { "success": true, "message": "Saved successfully" }
+  // ═══════════════════════════════════════════════════════════════════
+  if (message.action === "send_full_sign_sequence") {
+    const sequenceData = message.data || {};
+    console.log(
+      `📚 [Signify BG] Nhận fullSignSequence từ content.js:`,
+      `videoId=${sequenceData.videoId},`,
+      `tổng ${(sequenceData.fullSignSequence || []).length} ký hiệu`
+    );
+
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      fetch(`${BACKEND_URL}/api/ai/sign-sequence`, {
+        method: 'POST',
+        headers: headers,
+        body: JSON.stringify(sequenceData)
+      })
+        .then(async (res) => {
+          const resData = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            console.warn("[Signify BG] sign-sequence BE trả lỗi:", res.status, resData);
+            sendResponse({ success: false, status: res.status, data: resData });
+            return;
+          }
+          console.log("✅ [Signify BG] fullSignSequence saved on BE:", resData);
+          sendResponse({ success: true, data: resData });
+        })
+        .catch(err => {
+          console.error("[Signify BG] send_full_sign_sequence request failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+
+    return true; // Keep message channel open for async response
   }
 });

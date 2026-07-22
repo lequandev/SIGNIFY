@@ -154,7 +154,7 @@
   }
 
   // Production URLs (Render). Change these if BE/FE are redeployed elsewhere.
-  const BACKEND_URL = "https://signify-g3zb.onrender.com";
+  const BACKEND_URL = "http://localhost:8080";
   const FRONTEND_URL = "https://signify-i3rd.onrender.com";
   // Signify logo bundled with the extension (used in rail toggle + modal).
   const LOGO_URL = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL("icons/logo.png") : "";
@@ -187,6 +187,88 @@
     return signDataList;
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FULL SIGN SEQUENCE: Append & Send to Backend
+  // ═══════════════════════════════════════════════════════════════════
+
+  /**
+   * Thêm signDataList mới vào mảng fullSignSequence toàn cục,
+   * sau đó gửi toàn bộ mảng lên BE để lưu trữ.
+   *
+   * @param {Array<{word: string, animation: string}>} signDataList
+   *   - Danh sách ký hiệu từ 1 lần dịch (output của backend AI).
+   */
+  function appendToFullSignSequence(signDataList) {
+    if (!signDataList || signDataList.length === 0) return;
+
+    const now = Date.now();
+    // Gắn timestamp (ms từ epoch) vào mỗi ký hiệu để BE biết thứ tự thời gian
+    const itemsWithTimestamp = signDataList.map(item => ({
+      word: item.word,
+      animation: item.animation || null,
+      appendedAt: now
+    }));
+
+    fullSignSequence.push(...itemsWithTimestamp);
+
+    // In toàn bộ mảng ký hiệu hiện tại ra console
+    console.group(`📚 [Signify] fullSignSequence — ${fullSignSequence.length} ký hiệu tổng cộng`);
+    console.log('Vừa thêm:', itemsWithTimestamp.map(i => i.word));
+    console.log('Toàn bộ mảng hiện tại (word):',
+      fullSignSequence.map(i => i.word)
+    );
+    console.log('Chi tiết đầy đủ:');
+    console.table(fullSignSequence.map((i, idx) => ({
+      STT: idx + 1,
+      word: i.word,
+      animation: i.animation ? '✅ có' : '❌ không có',
+      appendedAt: new Date(i.appendedAt).toLocaleTimeString('vi-VN')
+    })));
+    console.groupEnd();
+
+    // KHÔNG gửi BE sau mỗi lần append.
+    // Chỉ gửi 1 lần duy nhất khi kết thúc video (xem sendFullSignSequenceToBackend trong handlePageTransition).
+  }
+
+  /**
+   * Lấy toàn bộ `word` trong fullSignSequence, ghép thành 1 chuỗi ký hiệu ngăn cách bởi dấu phẩy,
+   * và gửi duy nhất trường `signLanguageText` lên BE.
+   *
+   * BE API: POST /api/ai/sign-sequence
+   * Body: {
+   *   signLanguageText: "thi, môn cua, cấp trường, ra, động viên, bạn ấy, buồn, hôm nay, ..."
+   * }
+   */
+  function sendFullSignSequenceToBackend() {
+    if (!fullSignSequence || fullSignSequence.length === 0) return;
+    if (!chrome.runtime || !chrome.runtime.id) return;
+
+    // Ghép tất cả các từ ký hiệu ngăn cách bằng dấu phẩy và khoảng trắng ", "
+    const signLanguageText = fullSignSequence.map(i => i.word).join(', ');
+
+    const payload = {
+      signLanguageText: signLanguageText
+    };
+
+    console.log('📤 [Signify] Payload duy nhất signLanguageText sắp gửi lên BE:');
+    console.log('  signLanguageText:', payload.signLanguageText);
+
+    chrome.runtime.sendMessage({
+      action: "send_full_sign_sequence",
+      data: payload
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn("[Signify] sendFullSignSequenceToBackend error:", chrome.runtime.lastError.message);
+        return;
+      }
+      if (response && response.success) {
+        console.log(`✅ [Signify] signLanguageText đã gửi BE thành công.`);
+      } else {
+        console.warn("[Signify] Gửi signLanguageText lên BE thất bại:", response);
+      }
+    });
+  }
+
   function renderSignCaptionText(signDataList, fallbackText) {
     const captionText = document.getElementById('signify-caption-text');
     if (!captionText) return;
@@ -216,6 +298,14 @@
   let usageHeartbeatTimer = null;
   let quotaBlocked = false;
 
+  // ═══════════════════════════════════════════════════════════════════
+  // FULL SIGN SEQUENCE ACCUMULATOR
+  // Mảng tổng hợp TOÀN BỘ ký hiệu ngôn ngữ đã dịch trong phiên xem video.
+  // Mỗi lần backend trả về signDataList → append vào đây → gửi BE lưu lại.
+  // Format: Array<{ word: string, animation: string, timestamp: number }>
+  // ═══════════════════════════════════════════════════════════════════
+  let fullSignSequence = [];
+
   // Timeline Synchronization Engine State
   let activeVideoId = "";
   let fullTranscript = []; // Array of { start: ms, end: ms, text: String, translatedSignData: Array, isFetching: Boolean }
@@ -232,11 +322,14 @@
     window.open(`${FRONTEND_URL}/#/login`, '_blank', 'noopener,noreferrer');
   }
 
+  function openSignifyProfile() {
+    window.open(`${FRONTEND_URL}/#/profile`, '_blank', 'noopener,noreferrer');
+  }
+
   function renderSignifyUserInfo() {
     if (!chrome.storage || !chrome.storage.local) return;
 
     chrome.storage.local.get(['signifyUser'], (data) => {
-      const userNameEl = document.getElementById('signify-user-name');
       const userAvatarEl = document.getElementById('signify-user-avatar');
       const loginBtn = document.getElementById('signify-login-btn');
 
@@ -247,30 +340,23 @@
           const displayName = user.fullName || user.email || 'Signify User';
           const avatarUrl = user.avatarUrl || user.avatar || '';
 
-          if (userNameEl) userNameEl.textContent = displayName;
           if (loginBtn) loginBtn.style.display = 'none';
           if (userAvatarEl) {
+            userAvatarEl.style.display = 'flex';
             userAvatarEl.textContent = avatarUrl ? '' : (displayName.charAt(0) || 'S').toUpperCase();
             userAvatarEl.style.backgroundImage = avatarUrl ? `url(${avatarUrl})` : '';
             userAvatarEl.style.backgroundSize = 'cover';
             userAvatarEl.style.backgroundPosition = 'center';
+            userAvatarEl.title = `${displayName} - Xem hồ sơ (Profile)`;
           }
         } catch (e) {
           currentSignifyUser = null;
-          if (userNameEl) userNameEl.textContent = 'Chưa đăng nhập';
-          if (userAvatarEl) {
-            userAvatarEl.textContent = '?';
-            userAvatarEl.style.backgroundImage = '';
-          }
+          if (userAvatarEl) userAvatarEl.style.display = 'none';
           if (loginBtn) loginBtn.style.display = 'inline-flex';
         }
       } else {
         currentSignifyUser = null;
-        if (userNameEl) userNameEl.textContent = 'Chưa đăng nhập';
-        if (userAvatarEl) {
-          userAvatarEl.textContent = '?';
-          userAvatarEl.style.backgroundImage = '';
-        }
+        if (userAvatarEl) userAvatarEl.style.display = 'none';
         if (loginBtn) loginBtn.style.display = 'inline-flex';
       }
     });
@@ -519,10 +605,10 @@
     overlayContainer.id = 'signify-overlay';
     overlayContainer.className = 'signify-overlay-container';
 
-    // Modern glowing side-rail design
+    // Modern glowing collapsed logo button and overlay panel
     overlayContainer.innerHTML = `
-      <button class="signify-rail-toggle" id="signify-rail-toggle" title="Ẩn/hiện Signify">
-        <img class="signify-rail-logo" src="${LOGO_URL}" alt="Signify" />
+      <button class="signify-collapsed-logo-btn" id="signify-collapsed-logo-btn">
+        <img class="signify-collapsed-logo" src="${LOGO_URL}" alt="Signify Logo" />
       </button>
       <div class="signify-panel-content">
         <div class="signify-overlay-header">
@@ -531,17 +617,11 @@
             <span class="signify-logo-text">TRÌNH DỊCH SIGNIFY</span>
           </div>
           <div class="signify-header-actions">
-            <button class="signify-resize-btn" id="signify-resize-btn" title="Phóng to/Thu nhỏ">⛶</button>
-            <button class="signify-close-btn" id="signify-close-btn" title="Đóng">›</button>
+            <div class="signify-header-avatar" id="signify-user-avatar">?</div>
+            <button class="signify-login-btn" id="signify-login-btn" type="button">Đăng nhập</button>
+            <button class="signify-theme-btn" id="signify-theme-btn">🌙</button>
+            <button class="signify-close-btn" id="signify-close-btn">›</button>
           </div>
-        </div>
-        <div class="signify-user-info-box">
-          <div class="signify-user-avatar" id="signify-user-avatar">?</div>
-          <div class="signify-user-meta">
-            <div class="signify-user-label">Tài khoản đang dùng</div>
-            <div class="signify-user-name" id="signify-user-name">Đang tải...</div>
-          </div>
-          <button class="signify-login-btn" id="signify-login-btn" type="button">Đăng nhập</button>
         </div>
         <div class="signify-video-container">
           <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
@@ -551,6 +631,11 @@
           </div>
         </div>
       </div>
+      <!-- 4 Corner Resize Handles -->
+      <div class="signify-resize-handle top-left" data-corner="tl"></div>
+      <div class="signify-resize-handle top-right" data-corner="tr"></div>
+      <div class="signify-resize-handle bottom-left" data-corner="bl"></div>
+      <div class="signify-resize-handle bottom-right" data-corner="br"></div>
     `;
 
     // Append to YouTube Player container or body
@@ -559,34 +644,313 @@
     ytPlayer.appendChild(overlayContainer);
     console.log("Overlay created successfully");
 
-    // Load user info
-    renderSignifyUserInfo();
-
-    const loginBtn = document.getElementById('signify-login-btn');
-    if (loginBtn) {
-      loginBtn.addEventListener('click', openSignifyLogin);
-    }
-
-    const railToggle = document.getElementById('signify-rail-toggle');
-    if (railToggle) {
-      railToggle.addEventListener('click', () => {
-        overlayContainer.classList.toggle('signify-collapsed');
-        if (overlayContainer.classList.contains('signify-collapsed')) {
-          overlayContainer.classList.remove('signify-expanded'); // Đảm bảo thu nhỏ lại khi đóng
-          stopUsageSession();
-        } else {
-          startUsageSession();
+    // Restore saved panel dimensions, position, and theme if present
+    if (chrome.storage && chrome.storage.local) {
+      chrome.storage.local.get(['signifyPanelWidth', 'signifyPanelHeight', 'signifyPanelLeft', 'signifyPanelTop', 'signifyTheme'], (data) => {
+        if (data.signifyPanelWidth) overlayContainer.style.width = data.signifyPanelWidth;
+        if (data.signifyPanelHeight) overlayContainer.style.height = data.signifyPanelHeight;
+        if (data.signifyPanelLeft !== undefined && data.signifyPanelTop !== undefined) {
+          overlayContainer.style.left = data.signifyPanelLeft;
+          overlayContainer.style.top = data.signifyPanelTop;
+          overlayContainer.style.right = 'auto';
+        }
+        if (data.signifyTheme === 'light') {
+          overlayContainer.classList.add('signify-light-theme');
+          const themeBtn = document.getElementById('signify-theme-btn');
+          if (themeBtn) {
+            themeBtn.textContent = '☀️';
+          }
         }
       });
     }
 
-    // Bind Resize Event
-    const resizeBtn = document.getElementById('signify-resize-btn');
-    if (resizeBtn) {
-      resizeBtn.addEventListener('click', () => {
-        overlayContainer.classList.toggle('signify-expanded');
+    // Load user info
+    renderSignifyUserInfo();
+
+    const userAvatar = document.getElementById('signify-user-avatar');
+    if (userAvatar) {
+      userAvatar.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSignifyProfile();
       });
     }
+
+    const loginBtn = document.getElementById('signify-login-btn');
+    if (loginBtn) {
+      loginBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openSignifyLogin();
+      });
+    }
+
+    // Handle expand back to full panel demo from collapsed logo button
+    const expandPanelDemo = () => {
+      overlayContainer.classList.remove('signify-collapsed');
+      startUsageSession();
+      setHideNativeCaptions(true);
+
+      const videoPlayer = document.getElementById('signify-video-player');
+      if (videoPlayer && videoPlayer.paused) {
+        videoPlayer.play().catch(() => {});
+      }
+      handleTimelineUpdate();
+    };
+
+    const collapsedLogoBtn = document.getElementById('signify-collapsed-logo-btn');
+    if (collapsedLogoBtn) {
+      let isDraggingLogo = false;
+      let logoStartX = 0;
+      let logoStartY = 0;
+      let logoStartLeft = 0;
+      let logoStartTop = 0;
+      let logoHasMoved = false;
+
+      collapsedLogoBtn.addEventListener('pointerdown', (e) => {
+        isDraggingLogo = true;
+        logoHasMoved = false;
+        logoStartX = e.clientX;
+        logoStartY = e.clientY;
+
+        const rect = overlayContainer.getBoundingClientRect();
+        logoStartLeft = rect.left;
+        logoStartTop = rect.top;
+
+        const onPointerMove = (e) => {
+          if (!isDraggingLogo) return;
+          const deltaX = e.clientX - logoStartX;
+          const deltaY = e.clientY - logoStartY;
+
+          if (Math.hypot(deltaX, deltaY) > 6) {
+            logoHasMoved = true;
+          }
+
+          if (logoHasMoved) {
+            const panelWidth = overlayContainer.offsetWidth;
+            const panelHeight = overlayContainer.offsetHeight;
+
+            let newLeft = logoStartLeft + deltaX;
+            let newTop = logoStartTop + deltaY;
+
+            newLeft = Math.max(0, Math.min(window.innerWidth - panelWidth, newLeft));
+            newTop = Math.max(0, Math.min(window.innerHeight - panelHeight, newTop));
+
+            overlayContainer.style.right = 'auto';
+            overlayContainer.style.left = `${newLeft}px`;
+            overlayContainer.style.top = `${newTop}px`;
+          }
+        };
+
+        const onPointerUp = () => {
+          if (!isDraggingLogo) return;
+          isDraggingLogo = false;
+
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+
+          if (logoHasMoved) {
+            if (chrome.storage && chrome.storage.local) {
+              chrome.storage.local.set({
+                signifyPanelLeft: overlayContainer.style.left,
+                signifyPanelTop: overlayContainer.style.top
+              });
+            }
+          } else {
+            expandPanelDemo();
+          }
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        e.stopPropagation();
+      });
+    }
+
+    // Bind Theme Toggle Button (Dark Mode / Light Mode)
+    const themeBtn = document.getElementById('signify-theme-btn');
+    if (themeBtn) {
+      themeBtn.addEventListener('click', () => {
+        const isLight = overlayContainer.classList.toggle('signify-light-theme');
+        themeBtn.textContent = isLight ? '☀️' : '🌙';
+
+        if (chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            signifyTheme: isLight ? 'light' : 'dark'
+          });
+        }
+      });
+    }
+
+    // Drag panel to ANY position on screen by pulling the header
+    const headerEl = overlayContainer.querySelector('.signify-overlay-header');
+    if (headerEl) {
+      let isDraggingPanel = false;
+      let startX = 0;
+      let startY = 0;
+      let startLeft = 0;
+      let startTop = 0;
+
+      headerEl.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.signify-header-actions') || e.target.closest('button')) return;
+
+        isDraggingPanel = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = overlayContainer.getBoundingClientRect();
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        overlayContainer.classList.add('signify-is-dragging');
+        document.body.style.userSelect = 'none';
+
+        const onPointerMove = (e) => {
+          if (!isDraggingPanel) return;
+          const deltaX = e.clientX - startX;
+          const deltaY = e.clientY - startY;
+
+          const panelWidth = overlayContainer.offsetWidth;
+          const panelHeight = overlayContainer.offsetHeight;
+
+          let newLeft = startLeft + deltaX;
+          let newTop = startTop + deltaY;
+
+          newLeft = Math.max(0, Math.min(window.innerWidth - panelWidth, newLeft));
+          newTop = Math.max(0, Math.min(window.innerHeight - panelHeight, newTop));
+
+          overlayContainer.style.right = 'auto';
+          overlayContainer.style.left = `${newLeft}px`;
+          overlayContainer.style.top = `${newTop}px`;
+        };
+
+        const onPointerUp = () => {
+          if (!isDraggingPanel) return;
+          isDraggingPanel = false;
+          overlayContainer.classList.remove('signify-is-dragging');
+          document.body.style.userSelect = '';
+
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+
+          if (chrome.storage && chrome.storage.local) {
+            chrome.storage.local.set({
+              signifyPanelLeft: overlayContainer.style.left,
+              signifyPanelTop: overlayContainer.style.top
+            });
+          }
+        };
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        e.preventDefault();
+      });
+    }
+
+    // Drag-to-resize Logic for 4 corner handles
+    const resizeHandles = overlayContainer.querySelectorAll('.signify-resize-handle');
+    resizeHandles.forEach((handle) => {
+      let isResizing = false;
+      let startX = 0;
+      let startY = 0;
+      let startWidth = 0;
+      let startHeight = 0;
+      let startLeft = 0;
+      let startTop = 0;
+      const corner = handle.dataset.corner;
+
+      const onPointerDown = (e) => {
+        isResizing = true;
+        startX = e.clientX;
+        startY = e.clientY;
+
+        const rect = overlayContainer.getBoundingClientRect();
+        startWidth = rect.width;
+        startHeight = rect.height;
+        startLeft = rect.left;
+        startTop = rect.top;
+
+        overlayContainer.classList.add('signify-is-resizing');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = (corner === 'tl' || corner === 'br') ? 'nwse-resize' : 'nesw-resize';
+
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+        e.preventDefault();
+        e.stopPropagation();
+      };
+
+      const onPointerMove = (e) => {
+        if (!isResizing) return;
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+
+        const aspectRatio = startWidth / startHeight;
+
+        const minWidth = 220;
+        const maxWidth = Math.min(window.innerWidth * 0.9, window.innerWidth - 32);
+        const minHeight = 200;
+        const maxHeight = window.innerHeight * 0.9;
+
+        let scaleDelta = 0;
+        if (corner === 'br') {
+          scaleDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : deltaY * aspectRatio;
+        } else if (corner === 'bl') {
+          scaleDelta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX : deltaY * aspectRatio;
+        } else if (corner === 'tr') {
+          scaleDelta = Math.abs(deltaX) > Math.abs(deltaY) ? deltaX : -deltaY * aspectRatio;
+        } else if (corner === 'tl') {
+          scaleDelta = Math.abs(deltaX) > Math.abs(deltaY) ? -deltaX : -deltaY * aspectRatio;
+        }
+
+        let newWidth = Math.max(minWidth, Math.min(maxWidth, startWidth + scaleDelta));
+        let newHeight = newWidth / aspectRatio;
+
+        if (newHeight < minHeight) {
+          newHeight = minHeight;
+          newWidth = newHeight * aspectRatio;
+        } else if (newHeight > maxHeight) {
+          newHeight = maxHeight;
+          newWidth = newHeight * aspectRatio;
+        }
+
+        let newLeft = startLeft;
+        let newTop = startTop;
+
+        if (corner === 'tl' || corner === 'bl') {
+          newLeft = startLeft + (startWidth - newWidth);
+        }
+        if (corner === 'tl' || corner === 'tr') {
+          newTop = startTop + (startHeight - newHeight);
+        }
+
+        overlayContainer.style.width = `${Math.round(newWidth)}px`;
+        overlayContainer.style.height = `${Math.round(newHeight)}px`;
+        overlayContainer.style.right = 'auto';
+        overlayContainer.style.left = `${Math.round(newLeft)}px`;
+        overlayContainer.style.top = `${Math.round(newTop)}px`;
+      };
+
+      const onPointerUp = () => {
+        if (!isResizing) return;
+        isResizing = false;
+        overlayContainer.classList.remove('signify-is-resizing');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+
+        window.removeEventListener('pointermove', onPointerMove);
+        window.removeEventListener('pointerup', onPointerUp);
+
+        if (chrome.storage && chrome.storage.local) {
+          chrome.storage.local.set({
+            signifyPanelWidth: overlayContainer.style.width,
+            signifyPanelHeight: overlayContainer.style.height,
+            signifyPanelLeft: overlayContainer.style.left,
+            signifyPanelTop: overlayContainer.style.top
+          });
+        }
+      };
+
+      handle.addEventListener('pointerdown', onPointerDown);
+    });
 
     // Bind Close Event
     const closeBtn = document.getElementById('signify-close-btn');
@@ -1285,6 +1649,7 @@
       const localSignData = processSubtitleLocally(text);
       if (localSignData && localSignData.length > 0) {
         playSegmentSignData(localSignData);
+        appendToFullSignSequence(localSignData);  // ← Tích lũy vào mảng tổng hợp
       }
       return;
     }
@@ -1298,6 +1663,7 @@
         console.log(`🎯 Backend AI translation successful (observer mode). Input: "${text}" -> Output words: [${receivedWords}]`);
         renderSignCaptionText(response.data, text);
         playSegmentSignData(response.data);
+        appendToFullSignSequence(response.data);  // ← Tích lũy vào mảng tổng hợp
       } else {
         if (handleQuotaOrAuthResponse(response)) return;
         console.warn("Backend AI translation failed or empty, falling back to local.");
@@ -1305,6 +1671,7 @@
         if (localSignData && localSignData.length > 0) {
           renderSignCaptionText(localSignData, text);
           playSegmentSignData(localSignData);
+          appendToFullSignSequence(localSignData);  // ← Tích lũy vào mảng tổng hợp
         }
       }
     });
@@ -1419,6 +1786,30 @@
     console.log("DOM Observer started with enhanced caption selectors");
   }
 
+  // Gửi thông tin Video (ID & URL) sang Backend
+  function sendVideoInfoToBackend(videoId, videoUrl) {
+    if (!videoId || !chrome.runtime || !chrome.runtime.id) return;
+
+    const payload = {
+      videoId: videoId,
+      videoUrl: videoUrl || `https://www.youtube.com/watch?v=${videoId}`,
+      title: document.title || ""
+    };
+
+    chrome.runtime.sendMessage({
+      action: "save_video_info",
+      data: payload
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.warn("sendVideoInfoToBackend message error:", chrome.runtime.lastError.message);
+        return;
+      }
+      if (response && response.success) {
+        console.log("🚀 [Signify] Video info successfully sent to Backend!");
+      }
+    });
+  }
+
   // 9. Page Lifecycle and Navigation Monitor
   async function handlePageTransition() {
     const currentVideoId = getYouTubeVideoId();
@@ -1434,7 +1825,13 @@
     }
 
     if (currentVideoId !== activeVideoId) {
-      console.log(`🔄 Navigated to new YouTube Video: ${currentVideoId}`);
+      const videoUrl = window.location.href;
+      console.log(`==================================================`);
+      console.log(`🎬 [Signify] YouTube Video Info:`);
+      console.log(`📌 Video ID  : ${currentVideoId}`);
+      console.log(`🔗 Video URL : ${videoUrl}`);
+      console.log(`==================================================`);
+
       stopUsageSession();
       activeVideoId = currentVideoId;
       startUsageSession();
@@ -1445,16 +1842,77 @@
       lastSentSubtitle = "";
       pendingCaption = "";
 
-      const captionText = document.getElementById('signify-caption-text');
-      if (captionText) captionText.textContent = "Đang chuẩn bị dịch phụ đề...";
+      // Gửi toàn bộ chuỗi ký hiệu cuối cùng lên BE TRƯỚC khi reset (chỉ gửi 1 lần dựa trên mảng đầy đủ)
+      if (fullSignSequence.length > 0) {
+        console.log(`📤 [Signify] Đang gửi fullSignSequence cuối cùng lên BE (${fullSignSequence.length} ký hiệu) trước khi đổi video...`);
+        sendFullSignSequenceToBackend();
+      }
+      fullSignSequence = [];  // Reset mảng ký hiệu sau khi đã gửi BE
 
-      // YouTube đã chặn cào timedtext trực tiếp (mọi format trả rỗng nếu thiếu pot token),
-      // và endpoint backend /youtube-transcript cũng luôn rỗng vì lý do đó — nên KHÔNG gọi nó
-      // nữa (tránh phí ~10s chờ). Vào thẳng đường CHÍNH: bật ngầm CC + ẩn CSS + observer đọc DOM.
-      // -> giảm độ trễ khởi động từ ~11s xuống gần như tức thì.
-      setTimeout(() => {
-        activateObserverFallback("dùng observer trực tiếp");
-      }, 300);
+      const captionText = document.getElementById('signify-caption-text');
+      if (captionText) captionText.textContent = "Đang kiểm tra ký hiệu có sẵn từ máy chủ...";
+
+      console.log(`🔍 [Signify Extension] Gửi GET request đến BE kiểm tra trường signLanguage cho videoId: "${currentVideoId}"`);
+
+      // Gửi GET request tới BE để kiểm tra AI youtube đã có trường signLanguage chưa
+      chrome.runtime.sendMessage({
+        action: "get_video_info",
+        videoId: currentVideoId
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn("⚠️ [Signify Extension] get_video_info message error:", chrome.runtime.lastError.message);
+        }
+
+        const signLanguageStr = (response && response.success && response.data) ? response.data.signLanguage : null;
+
+        if (signLanguageStr && signLanguageStr.trim().length > 0) {
+          // Tách các từ ký hiệu ngăn cách bằng dấu phẩy
+          const words = signLanguageStr.split(',').map(w => w.trim()).filter(w => w.length > 0);
+
+          console.group(`🎯 [Signify Extension] BE ĐÃ CÓ sẵn trường signLanguage cho video: ${currentVideoId}`);
+          console.log(`📌 Chuỗi signLanguage từ BE: "${signLanguageStr}"`);
+          console.log(`📌 Tổng số từ ký hiệu: ${words.length}`);
+          console.log(`📌 Danh sách từ:`, words);
+          console.log(`🚀 Bỏ qua gọi AI response, sử dụng dữ liệu sẵn có từ BE để phát ký hiệu.`);
+          console.groupEnd();
+
+          if (captionText) captionText.textContent = "Đã nạp ký hiệu ngôn ngữ có sẵn từ máy chủ!";
+
+          const cachedSignDataList = [];
+          for (const word of words) {
+            const animationUrl = mapWordToAnimation(word) || `${BACKEND_URL}/assets/animations/${stripVietnameseAccents(word.toLowerCase()).replace(/\s+/g, "-")}.mp4`;
+            cachedSignDataList.push({
+              word: word,
+              animation: animationUrl
+            });
+          }
+
+          if (cachedSignDataList.length > 0) {
+            console.log(`🎬 [Signify Extension] Tiến hành phát ${cachedSignDataList.length} ký hiệu đã lấy từ BE...`);
+            playSegmentSignData(cachedSignDataList);
+
+            // Đã lấy được signLanguage từ BE => không cần bật observer AI dịch nữa
+            if (observer) {
+              observer.disconnect();
+              observer = null;
+            }
+            return;
+          }
+        }
+
+        // Nếu CHƯA CÓ trường signLanguage trên BE (Lần đầu tiên xem video này):
+        console.group(`ℹ️ [Signify Extension] BE CHƯA CÓ trường signLanguage cho video: ${currentVideoId}`);
+        console.log(`📌 Lần đầu tiên xem video này -> Tiến hành bật cào phụ đề & gọi AI Response.`);
+        console.log(`📌 Sau khi xem xong, chuỗi ký hiệu dịch được sẽ được gửi lên BE để tạo trường signLanguage.`);
+        console.groupEnd();
+
+        // Gửi thông tin Video (ID & URL) về Backend để tạo record
+        sendVideoInfoToBackend(currentVideoId, videoUrl);
+
+        setTimeout(() => {
+          activateObserverFallback("dùng observer trực tiếp");
+        }, 300);
+      });
     } else if (!isSyncActive) {
       // In case we are on the same video but the video element re-rendered
       startTimelineSync();
@@ -1495,7 +1953,7 @@
       // Set YouTube API key
       chrome.runtime.sendMessage({
         action: "set_youtube_api_key",
-        apiKey: "AIzaSyAhoS5UX3bxeUpHI2SyjGLOifh7coDEIb4"
+        apiKey: ""
       }, (response) => {
         if (response && response.success) {
           console.log("YouTube API key set successfully");
