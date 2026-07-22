@@ -16,6 +16,7 @@ public class UserProfileResponse {
     String _id;
     String fullName;
     String email;
+    String username;
     String phoneNumber;
     String address;
     String avatarUrl;
@@ -28,6 +29,7 @@ public class UserProfileResponse {
                 ._id(user.getId())
                 .fullName(user.getFullName())
                 .email(user.getEmail())
+                .username(user.getUsername())
                 .phoneNumber(user.getPhoneNumber())
                 .address(user.getAddress())
                 .avatarUrl(user.getAvatarUrl())

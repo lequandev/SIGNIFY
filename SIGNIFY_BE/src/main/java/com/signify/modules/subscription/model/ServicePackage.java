@@ -21,7 +21,7 @@ public class ServicePackage {
     @Id
     String id;
 
-    String planType; // individual, business
+    String planType; // individual or education
 
     String name;
 

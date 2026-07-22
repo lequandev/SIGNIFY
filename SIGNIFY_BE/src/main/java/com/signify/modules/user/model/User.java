@@ -20,8 +20,11 @@ public class User {
     @Id
     String id;
 
-    @Indexed(unique = true)
+    @Indexed(unique = true, sparse = true, name = "email_unique_sparse")
     String email;
+
+    @Indexed(unique = true, sparse = true, name = "username_unique_sparse")
+    String username;
 
     String passwordHash;
 
@@ -42,6 +45,13 @@ public class User {
     String role;
 
     String status;
+
+    /**
+     * True when the account was provisioned with a temporary password
+     * (e.g. student accounts created by a teacher) and the user must
+     * change it on first login.
+     */
+    Boolean mustChangePassword;
 
     @CreatedDate
     LocalDateTime createdAt;

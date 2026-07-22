@@ -1,5 +1,6 @@
 package com.signify.config;
 
+import com.signify.modules.user.model.Role;
 import com.signify.modules.user.model.User;
 import com.signify.modules.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -30,9 +31,10 @@ public class DataInitializer implements CommandLineRunner {
                     .fullName("Signify Admin")
                     .email(adminEmail)
                     .passwordHash(passwordEncoder.encode("signify123"))
-                    .role("ADMIN")
+                    .role(Role.ADMIN)
                     .status("ACTIVE")
                     .isVerified(true)
+                    .mustChangePassword(false)
                     .createdAt(LocalDateTime.now())
                     .build();
             

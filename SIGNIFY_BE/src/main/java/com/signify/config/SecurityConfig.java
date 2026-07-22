@@ -35,12 +35,37 @@ public class SecurityConfig {
             }))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/api/v1/auth/**").permitAll()
-                .requestMatchers("/api/v1/service-packages/**").permitAll()
-                .requestMatchers("/api/v1/payments/webhook").permitAll()
-                .requestMatchers("/api/v1/payments/**").authenticated()
-                .requestMatchers("/api/v1/subscriptions/**").authenticated()
-                .anyRequest().permitAll()
+                // Preflight
+                .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/**").permitAll()
+
+                // Public auth endpoints (auth + user share the /api/users base)
+                .requestMatchers("/api/users/register", "/api/users/login",
+                        "/api/users/google-login", "/api/users/verify/**").permitAll()
+
+                // Service packages: public read, admin-only mutations
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/service-packages/**").permitAll()
+                .requestMatchers("/api/v1/service-packages/**").hasRole("ADMIN")
+
+                // Payment webhook is called by PayOS (no JWT)
+                .requestMatchers("/api/payments/webhook").permitAll()
+
+                // Admin console
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                // School management: any authenticated user; fine-grained role/ownership
+                // checks (SCHOOL_ADMIN etc.) are enforced in the service layer.
+                .requestMatchers("/api/v1/schools/**").authenticated()
+                .requestMatchers("/api/v1/classes/**").hasRole("TEACHER")
+                .requestMatchers("/api/v1/evaluations/**").hasAnyRole("TEACHER", "SCHOOL_ADMIN")
+                .requestMatchers("/api/v1/students/**").hasAnyRole("TEACHER", "SCHOOL_ADMIN")
+                .requestMatchers("/api/v1/assignments/**", "/api/v1/me/**").authenticated()
+
+                // AI endpoints return their own AUTH_REQUIRED/quota responses so the
+                // existing extension flow can handle them without a Spring 403.
+                .requestMatchers("/api/ai/**").permitAll()
+
+                // Everything else requires a valid JWT
+                .anyRequest().authenticated()
             )
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
             
