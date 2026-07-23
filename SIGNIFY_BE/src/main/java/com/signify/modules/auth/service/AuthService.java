@@ -17,15 +17,24 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.util.Base64;
 import java.util.Collections;
-import java.util.UUID;
 import java.util.Locale;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AuthService {
+
+    private static final int PASSWORD_RESET_TOKEN_BYTES = 32;
+    private static final int PASSWORD_RESET_TOKEN_VALID_MINUTES = 30;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -116,6 +125,82 @@ public class AuthService {
         user.setStatus("ACTIVE");
         user.setVerificationToken(null);
         userRepository.save(user);
+    }
+
+    public boolean requestPasswordReset(String requestedEmail) {
+        String email = requestedEmail.trim().toLowerCase(Locale.ROOT);
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+        if (user == null) {
+            return false;
+        }
+
+        String rawToken = generatePasswordResetToken();
+        user.setPasswordResetTokenHash(hashPasswordResetToken(rawToken));
+        user.setPasswordResetTokenExpiresAt(
+                LocalDateTime.now().plusMinutes(PASSWORD_RESET_TOKEN_VALID_MINUTES));
+        userRepository.save(user);
+
+        String resetUrl = frontendUrl.replaceAll("/+$", "") + "/reset-password?token=" + rawToken;
+        String emailContent = "<div style=\"font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;\">" +
+                "<h2 style=\"color: #2563EB;\">Đặt lại mật khẩu Signify</h2>" +
+                "<p>Chúng tôi đã nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>" +
+                "<a href=\"" + resetUrl + "\" style=\"display: inline-block; padding: 12px 24px; background-color: #2563EB; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;\">Đặt lại mật khẩu</a>" +
+                "<p style=\"margin-top: 20px; color: #666; font-size: 14px;\">Liên kết có hiệu lực trong 30 phút. Nếu bạn không yêu cầu đặt lại mật khẩu, hãy bỏ qua email này.</p>" +
+                "<p style=\"color: #666; font-size: 14px;\">Nếu nút không hoạt động, hãy sao chép liên kết sau:<br/>" + resetUrl + "</p>" +
+                "</div>";
+
+        try {
+            emailService.sendHtmlEmail(user.getEmail(), "Đặt lại mật khẩu Signify", emailContent);
+        } catch (RuntimeException exception) {
+            user.setPasswordResetTokenHash(null);
+            user.setPasswordResetTokenExpiresAt(null);
+            userRepository.save(user);
+            throw exception;
+        }
+        return true;
+    }
+
+    public boolean resetPassword(String rawToken, String newPassword) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return false;
+        }
+
+        User user = userRepository.findByPasswordResetTokenHash(hashPasswordResetToken(rawToken.trim()))
+                .orElse(null);
+        if (user == null) {
+            return false;
+        }
+
+        LocalDateTime expiresAt = user.getPasswordResetTokenExpiresAt();
+        if (expiresAt == null || expiresAt.isBefore(LocalDateTime.now())) {
+            user.setPasswordResetTokenHash(null);
+            user.setPasswordResetTokenExpiresAt(null);
+            userRepository.save(user);
+            return false;
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setMustChangePassword(false);
+        user.setPasswordResetTokenHash(null);
+        user.setPasswordResetTokenExpiresAt(null);
+        userRepository.save(user);
+        return true;
+    }
+
+    private String generatePasswordResetToken() {
+        byte[] tokenBytes = new byte[PASSWORD_RESET_TOKEN_BYTES];
+        SECURE_RANDOM.nextBytes(tokenBytes);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(tokenBytes);
+    }
+
+    private String hashPasswordResetToken(String rawToken) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(rawToken.getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(digest);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is not available", exception);
+        }
     }
 
     public AuthResponse googleLogin(GoogleLoginRequest request) {

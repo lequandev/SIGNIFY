@@ -40,7 +40,8 @@ public class SecurityConfig {
 
                 // Public auth endpoints (auth + user share the /api/users base)
                 .requestMatchers("/api/users/register", "/api/users/login",
-                        "/api/users/google-login", "/api/users/verify/**").permitAll()
+                        "/api/users/google-login", "/api/users/verify/**",
+                        "/api/users/forgot-password", "/api/users/reset-password").permitAll()
 
                 // Service packages: public read, admin-only mutations
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/service-packages/**").permitAll()
