@@ -267,6 +267,108 @@ class SchoolAiUsageServiceTest {
     }
 
     @Test
+    void fixedDemoIsActivatedAndChargedImmediatelyWhileUsingLocalAssets() {
+        when(processingRepository.findByProcessingKey("fixed-demo-v1:9yGEEb0CRl4"))
+                .thenReturn(Optional.empty());
+        when(processingRepository.save(any(AiVideoProcessing.class))).thenAnswer(invocation -> {
+            AiVideoProcessing processing = invocation.getArgument(0);
+            processing.setId("fixed-demo-processing");
+            return processing;
+        });
+
+        AiVideoAuthorizationResponse response = service.authorizeVideo(
+                "teacher-1", request("9yGEEb0CRl4", 600));
+
+        assertTrue(response.isAllowed());
+        assertTrue(response.isCached());
+        assertFalse(response.isOwnsProcessing());
+        assertEquals(600, response.getChargeSeconds());
+        assertEquals(600, usage.getUsedSeconds());
+        assertEquals(0, usage.getReservedSeconds());
+        assertEquals(600, memberDailyUsage.getUsedSeconds());
+        verify(processingRepository).save(argThat(processing ->
+                "COMPLETED".equals(processing.getStatus())
+                        && "fixed-demo-v1".equals(processing.getProcessingVersion())
+                        && Boolean.TRUE.equals(processing.getUsageCommitted())));
+        verify(videoEntitlementRepository, atLeastOnce()).save(argThat(entitlement ->
+                "school-1".equals(entitlement.getSchoolId())
+                        && "fixed-demo-v1:9yGEEb0CRl4".equals(entitlement.getProcessingKey())
+                        && "ACTIVE".equals(entitlement.getStatus())));
+    }
+
+    @Test
+    void fixedDemoAlreadyActivatedBySchoolIsNotChargedAgainForStudent() {
+        SchoolService.SchoolContext studentContext = contextWithRole("student-1", "STUDENT");
+        when(schoolService.resolveSchoolContext("student-1")).thenReturn(Optional.of(studentContext));
+        AiVideoProcessing completed = AiVideoProcessing.builder()
+                .id("fixed-demo-processing")
+                .processingKey("fixed-demo-v1:J7b0jxVB1TE")
+                .videoId("J7b0jxVB1TE")
+                .status("COMPLETED")
+                .durationSeconds(600L)
+                .build();
+        SchoolVideoEntitlement entitlement = SchoolVideoEntitlement.builder()
+                .id("fixed-demo-entitlement")
+                .schoolId("school-1")
+                .processingKey("fixed-demo-v1:J7b0jxVB1TE")
+                .status("ACTIVE")
+                .chargedSeconds(600L)
+                .build();
+        when(processingRepository.findByProcessingKey("fixed-demo-v1:J7b0jxVB1TE"))
+                .thenReturn(Optional.of(completed));
+        when(videoEntitlementRepository.findBySchoolIdAndProcessingKey(
+                "school-1", "fixed-demo-v1:J7b0jxVB1TE"))
+                .thenReturn(Optional.of(entitlement));
+
+        AiVideoAuthorizationResponse response = service.authorizeVideo(
+                "student-1", request("J7b0jxVB1TE", 600));
+
+        assertTrue(response.isAllowed());
+        assertEquals(0, response.getChargeSeconds());
+        assertEquals(0, usage.getUsedSeconds());
+        verify(videoEntitlementRepository, never()).save(any());
+    }
+
+    @Test
+    void studentCanBeTheFirstActivatorOfFixedDemoAndIsChargedToday() {
+        SchoolService.SchoolContext studentContext = contextWithRole("student-1", "STUDENT");
+        when(schoolService.resolveSchoolContext("student-1")).thenReturn(Optional.of(studentContext));
+        SchoolMemberDailyAiUsage studentDailyUsage = SchoolMemberDailyAiUsage.builder()
+                .id("student-daily-1")
+                .schoolId("school-1")
+                .userId("student-1")
+                .role("STUDENT")
+                .usageDate(LocalDate.now())
+                .limitSeconds(3600L)
+                .usedSeconds(0L)
+                .reservedSeconds(0L)
+                .processedVideoCount(0L)
+                .version(0L)
+                .build();
+        when(memberDailyUsageRepository.findBySchoolIdAndUserIdAndUsageDate(
+                eq("school-1"), eq("student-1"), any(LocalDate.class)))
+                .thenReturn(Optional.of(studentDailyUsage));
+        when(memberDailyUsageRepository.findById("student-daily-1"))
+                .thenReturn(Optional.of(studentDailyUsage));
+        when(processingRepository.findByProcessingKey("fixed-demo-v1:VG8apSF2018"))
+                .thenReturn(Optional.empty());
+        when(processingRepository.save(any(AiVideoProcessing.class))).thenAnswer(invocation -> {
+            AiVideoProcessing processing = invocation.getArgument(0);
+            processing.setId("fixed-demo-student-processing");
+            return processing;
+        });
+
+        AiVideoAuthorizationResponse response = service.authorizeVideo(
+                "student-1", request("VG8apSF2018", 600));
+
+        assertTrue(response.isAllowed());
+        assertEquals(600, response.getChargeSeconds());
+        assertEquals(600, usage.getUsedSeconds());
+        assertEquals(600, studentDailyUsage.getUsedSeconds());
+        assertEquals(1, studentDailyUsage.getProcessedVideoCount());
+    }
+
+    @Test
     void paidTopUpAddsMinutesToCurrentPeriodOnlyOnce() {
         when(schoolService.resolveManagedSchoolContext("admin-1")).thenReturn(context);
         usage.setUsedSeconds(300000L);

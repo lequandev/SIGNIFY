@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +44,11 @@ public class SchoolAiUsageService {
     public static final String VIDEO_PROCESSING_IN_PROGRESS = "AI_VIDEO_PROCESSING_IN_PROGRESS";
     public static final String TOP_UP_NOT_AVAILABLE = "AI_USAGE_TOP_UP_NOT_AVAILABLE";
     private static final String PROCESSING_VERSION = "v1";
+    private static final String FIXED_DEMO_PROCESSING_VERSION = "fixed-demo-v1";
+    private static final Set<String> FIXED_DEMO_VIDEO_IDS = Set.of(
+            "9yGEEb0CRl4",
+            "J7b0jxVB1TE",
+            "VG8apSF2018");
     private static final String STATUS_PROCESSING = "PROCESSING";
     private static final String STATUS_COMPLETED = "COMPLETED";
     private static final String STATUS_FAILED = "FAILED";
@@ -71,6 +77,10 @@ public class SchoolAiUsageService {
 
         String videoId = normalizeVideoId(request.getVideoId());
         long durationSeconds = requireDuration(request.getDurationSeconds());
+        if (FIXED_DEMO_VIDEO_IDS.contains(videoId)) {
+            return authorizeFixedDemoVideo(context, userId, request, videoId, durationSeconds);
+        }
+
         String processingKey = PROCESSING_VERSION + ":" + videoId;
         LocalDateTime now = LocalDateTime.now();
         AiVideoProcessing existing = processingRepository.findByProcessingKey(processingKey).orElse(null);
@@ -146,6 +156,61 @@ public class SchoolAiUsageService {
             return authorizationResponse(context, concurrent, false, false, 0);
         }
         return authorizationResponse(context, processing, false, true, durationSeconds);
+    }
+
+    private AiVideoAuthorizationResponse authorizeFixedDemoVideo(
+            SchoolService.SchoolContext context,
+            String userId,
+            AiVideoAuthorizationRequest request,
+            String videoId,
+            long durationSeconds) {
+        String processingKey = FIXED_DEMO_PROCESSING_VERSION + ":" + videoId;
+        AiVideoProcessing processing = processingRepository.findByProcessingKey(processingKey).orElse(null);
+        SchoolVideoEntitlement schoolEntitlement = videoEntitlementRepository
+                .findBySchoolIdAndProcessingKey(context.school().getId(), processingKey)
+                .orElse(null);
+
+        if (processing != null && STATUS_COMPLETED.equals(processing.getStatus())
+                && isActive(schoolEntitlement)) {
+            return authorizationResponse(context, processing, true, false, 0);
+        }
+
+        if (processing == null) {
+            LocalDateTime now = LocalDateTime.now();
+            processing = AiVideoProcessing.builder()
+                    .processingKey(processingKey)
+                    .videoId(videoId)
+                    .processingVersion(FIXED_DEMO_PROCESSING_VERSION)
+                    .videoTitle(trimToNull(request.getVideoTitle()))
+                    .videoUrl(trimToNull(request.getVideoUrl()))
+                    .channelName(trimToNull(request.getChannelName()))
+                    .durationSeconds(durationSeconds)
+                    .requestedBy(userId)
+                    .reservedSeconds(0L)
+                    .status(STATUS_COMPLETED)
+                    .usageCommitted(true)
+                    .memberDailyUsageCommitted(true)
+                    .completedAt(now)
+                    .createdAt(now)
+                    .updatedAt(now)
+                    .build();
+            try {
+                processing = processingRepository.save(processing);
+            } catch (DuplicateKeyException exception) {
+                processing = processingRepository.findByProcessingKey(processingKey)
+                        .orElseThrow(() -> exception);
+            }
+        }
+
+        if (!STATUS_COMPLETED.equals(processing.getStatus())) {
+            throw new AiUsageException(VIDEO_PROCESSING_IN_PROGRESS,
+                    "Video demo đang được chuẩn bị. Vui lòng thử lại sau ít phút.", null);
+        }
+
+        long chargedSeconds = requireDuration(processing.getDurationSeconds());
+        activateCachedVideoForSchool(
+                context, userId, processing, chargedSeconds, schoolEntitlement);
+        return authorizationResponse(context, processing, true, false, chargedSeconds);
     }
 
     public synchronized AiUsageSummaryResponse completeProcessing(String userId, String processingId) {

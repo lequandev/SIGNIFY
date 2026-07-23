@@ -1,8 +1,8 @@
 // Signify Chrome Extension - Background Service Worker
 console.log("Signify Background Service Worker initialized!");
 
-// Production backend URL (Render). Change this if the backend is redeployed elsewhere.
-const BACKEND_URL = "https://signify-g3zb.onrender.com";
+// Local Spring Boot backend.
+const BACKEND_URL = "http://localhost:8080";
 
 // Health-check the backend. Returns true if reachable.
 async function checkBackendHealth() {
@@ -83,6 +83,44 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, error: err.toString() });
     });
     return true; // Keep channel open
+  }
+
+  if (message.action === "get_current_video_metadata") {
+    if (!sender.tab || !sender.tab.id) {
+      sendResponse({ success: false, error: "No sender tab ID found" });
+      return;
+    }
+
+    chrome.scripting.executeScript({
+      target: { tabId: sender.tab.id },
+      func: () => {
+        const player = document.getElementById('movie_player');
+        const videoData = player && typeof player.getVideoData === 'function'
+          ? player.getVideoData()
+          : {};
+        const duration = player && typeof player.getDuration === 'function'
+          ? Number(player.getDuration())
+          : 0;
+        return {
+          videoId: videoData.video_id || '',
+          durationSeconds: Number.isFinite(duration) ? Math.ceil(duration) : 0,
+          videoTitle: videoData.title || '',
+          channelName: videoData.author || ''
+        };
+      },
+      world: 'MAIN'
+    })
+      .then(results => {
+        const metadata = results && results[0] ? results[0].result : null;
+        sendResponse(metadata
+          ? { success: true, data: metadata }
+          : { success: false, error: "Current video metadata is unavailable" });
+      })
+      .catch(err => {
+        console.error("Failed to read current video metadata:", err);
+        sendResponse({ success: false, error: err.toString() });
+      });
+    return true;
   }
 
   // Cào transcript qua backend (không cần bật CC). Backend tự đọc trang YouTube,
@@ -234,6 +272,62 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })
         .catch(err => {
           console.error("Usage session start failed:", err);
+          sendResponse({ success: false, error: err.toString() });
+        });
+    });
+    return true;
+  }
+
+  if (message.action === "authorize_fixed_demo") {
+    chrome.storage.local.get(["signifyAuthToken"], (data) => {
+      const token = data.signifyAuthToken;
+
+      if (!token) {
+        sendResponse({
+          success: false,
+          authRequired: true,
+          error: "Vui lòng đăng nhập Signify để bắt đầu dịch."
+        });
+        return;
+      }
+
+      fetch(`${BACKEND_URL}/api/v1/ai-usage/videos/authorize`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(message.requestData || {})
+      })
+        .then(async response => {
+          const responseData = await response.json().catch(() => ({}));
+          if (response.status === 401) {
+            sendResponse({
+              success: false,
+              authRequired: true,
+              status: response.status,
+              error: responseData.message || "Vui lòng đăng nhập Signify để bắt đầu dịch."
+            });
+            return;
+          }
+          if (response.status === 403 && responseData.code === 'FREE_DAILY_LIMIT_REACHED') {
+            sendResponse({ success: false, quotaExceeded: true, data: responseData });
+            return;
+          }
+          if (!response.ok) {
+            sendResponse({
+              success: false,
+              status: response.status,
+              code: responseData.code,
+              data: responseData,
+              error: responseData.message || `HTTP error! Status: ${response.status}`
+            });
+            return;
+          }
+          sendResponse({ success: true, data: responseData });
+        })
+        .catch(err => {
+          console.error("Fixed demo authorization failed:", err);
           sendResponse({ success: false, error: err.toString() });
         });
     });
