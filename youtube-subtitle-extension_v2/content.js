@@ -393,10 +393,24 @@
            document.getElementById('signify-video-player-1');
   }
 
+  // Độ trễ nghỉ giữa 2 animation liên tiếp (700ms ~ 0.7 giây)
+  // Giúp trình duyệt kịp nạp video và người xem dễ theo dõi từng ký hiệu
+  const ANIMATION_INTER_CLIP_DELAY_MS = 700;
+
+  function handleVideoEnded() {
+    clearTimeout(animationTimeout);
+    if (animationQueue.length > 0) {
+      // Tạm dừng 700ms giữa 2 animation liên tiếp rồi mới phát từ tiếp theo
+      animationTimeout = setTimeout(playNextAnimation, ANIMATION_INTER_CLIP_DELAY_MS);
+    } else {
+      playIdleVideo();
+    }
+  }
+
   function bindVideoPlayerEvents(player) {
     if (!player) return;
-    player.removeEventListener('ended', playNextAnimation);
-    player.addEventListener('ended', playNextAnimation);
+    player.removeEventListener('ended', handleVideoEnded);
+    player.addEventListener('ended', handleVideoEnded);
     player.removeEventListener('error', handleVideoError);
     player.addEventListener('error', handleVideoError);
   }
