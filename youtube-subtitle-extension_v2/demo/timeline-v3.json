@@ -5,8 +5,8 @@
     "text": "Đường ơi, hết giờ học rồi, đi về đi",
     "clips": [
       "demo/signs-v3/xin-chao.mov",
-      "demo/signs-v3/di-hoc.mov",
-      "demo/signs-v3/ve-nha.mov"
+      "demo/signs-v3/di-hoc.mp4",
+      "demo/signs-v3/ve-nha.mp4"
     ]
   },
   {
@@ -16,8 +16,8 @@
     "clips": [
       "demo/signs-v3/ly-do.mp4",
       "demo/signs-v3/khong.mp4",
-      "demo/signs-v3/danh-hieu.mov",
-      "demo/signs-v3/co-vua.mov"
+      "demo/signs-v3/danh-hieu.mp4",
+      "demo/signs-v3/co-vua.mp4"
     ]
   },
   {
@@ -25,7 +25,7 @@
     "lead": 0.2,
     "text": "Mình ra động viên bạn ấy đi",
     "clips": [
-      "demo/signs-v3/dong-vien.mov"
+      "demo/signs-v3/dong-vien.mp4"
     ]
   },
   {
@@ -45,8 +45,8 @@
       "demo/signs-v3/cac-ban.mp4",
       "demo/signs-v3/tin-tuong.mp4",
       "demo/signs-v3/toi.mp4",
-      "demo/signs-v3/bo-me.mov",
-      "demo/signs-v3/thay-co.mov",
+      "demo/signs-v3/bo-me.mp4",
+      "demo/signs-v3/thay-co.mp4",
       "demo/signs-v3/cac-ban.mp4"
     ]
   },
@@ -56,9 +56,9 @@
     "text": "Cậu đã rất cố gắng rồi. Đừng tự trách mình nữa",
     "clips": [
       "demo/signs-v3/co-gang.mp4",
-      "demo/signs-v3/nhieu.mov",
+      "demo/signs-v3/nhieu.mp4",
       "demo/signs-v3/khong.mp4",
-      "demo/signs-v3/trach-mang.mov",
+      "demo/signs-v3/trach-mang.mp4",
       "demo/signs-v3/ban-than-myself.mov"
     ]
   },
@@ -67,9 +67,9 @@
     "lead": 0.2,
     "text": "Đi về cùng chúng tôi đi",
     "clips": [
-      "demo/signs-v3/chung-toi.mov",
+      "demo/signs-v3/chung-toi.mp4",
       "demo/signs-v3/cung-together.mp4",
-      "demo/signs-v3/ve-nha.mov"
+      "demo/signs-v3/ve-nha.mp4"
     ]
   },
   {
@@ -88,7 +88,7 @@
     "clips": [
       "demo/signs-v3/cac-ban.mp4",
       "demo/signs-v3/tin-tuong.mp4",
-      "demo/signs-v3/chung-toi.mov"
+      "demo/signs-v3/chung-toi.mp4"
     ]
   }
 ]
