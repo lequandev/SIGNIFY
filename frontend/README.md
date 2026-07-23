@@ -1,73 +1,60 @@
-# React + TypeScript + Vite
+# Signify Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + TypeScript + Vite frontend for Signify.
 
-Currently, two official plugins are available:
+## Local development
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Requirements: Node.js 22 and npm.
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Local development uses `http://localhost:8080/api` by default. Override it by
+creating `frontend/.env.local`:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+```dotenv
+VITE_API_URL=http://localhost:8080/api
+VITE_GOOGLE_CLIENT_ID=your-google-client-id
+```
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Production deployment on Render
+
+The production API is `https://signify-g3zb.onrender.com/api`. The frontend
+Blueprint is defined in `frontend/render.yaml`.
+
+Create or update the Render Static Site with these settings:
+
+| Setting | Value |
+| --- | --- |
+| Blueprint Path | `frontend/render.yaml` |
+| Root Directory | `frontend` |
+| Build Command | `npm ci && npm run build` |
+| Publish Directory | `dist` |
+| `VITE_API_URL` | `https://signify-g3zb.onrender.com/api` |
+| `VITE_GOOGLE_CLIENT_ID` | Google OAuth web client ID |
+
+The SPA rewrite in `render.yaml` sends all browser routes to `index.html`, so
+routes such as `/verify-email/:token` and `/payment-success` continue to work
+after a page refresh.
+
+After Render assigns the frontend URL, configure the backend Render service:
+
+```dotenv
+SPRING_PROFILES_ACTIVE=prod
+FRONTEND_URL=https://signify-i3rd.onrender.com
+CORS_ALLOWED_ORIGINS=https://signify-i3rd.onrender.com
+```
+
+Then redeploy the backend so verification emails, school invitations, PayOS
+callbacks, and CORS all use the frontend origin. Also add
+`https://signify-i3rd.onrender.com` to Google OAuth's authorized JavaScript
+origins.
+
+## Verification
+
+```bash
+npm run build
+npm run lint
 ```

@@ -1,9 +1,10 @@
 services:
   - type: web
     name: signify-frontend
-    env: static
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
     envVars:
       - key: VITE_API_URL
         value: https://signify-g3zb.onrender.com/api
