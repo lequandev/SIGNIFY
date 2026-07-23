@@ -10,8 +10,10 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://signify-g3zb.onrender.com/*",
-    "https://signify-i3rd.onrender.com/*",
+    "http://localhost:8080/*",
+    "http://127.0.0.1:8080/*",
+    "http://localhost:5173/*",
+    "http://127.0.0.1:5173/*",
     "*://*.youtube.com/*",
     "*://*.googlevideo.com/*",
     "*://*.googleapis.com/*",
@@ -54,7 +56,10 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://signify-i3rd.onrender.com/*"],
+      "matches": [
+        "http://localhost:5173/*",
+        "http://127.0.0.1:5173/*"
+      ],
       "js": ["auth-sync.js"],
       "run_at": "document_idle"
     },

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const beStatus = document.getElementById('be-status');
   const toggleBtn = document.getElementById('toggle-overlay');
 
-  const BACKEND_URL = "https://signify-g3zb.onrender.com";
+  const BACKEND_URL = "http://localhost:8080";
 
   function checkBackendHealth() {
     beStatus.textContent = 'Đang kiểm tra...';

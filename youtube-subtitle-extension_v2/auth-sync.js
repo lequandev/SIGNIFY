@@ -1,5 +1,5 @@
 // Sync Signify web auth token into the extension storage.
-// Runs only on the local Signify frontend origin.
+// Runs only on the local Signify frontend origins declared in manifest.json.
 (function () {
   function syncAuth() {
     try {

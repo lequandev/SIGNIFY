@@ -153,9 +153,9 @@
     return words;
   }
 
-  // Production URLs (Render). Change these if BE/FE are redeployed elsewhere.
-  const BACKEND_URL = "https://signify-g3zb.onrender.com";
-  const FRONTEND_URL = "https://signify-i3rd.onrender.com";
+  // Local development URLs.
+  const BACKEND_URL = "http://localhost:8080";
+  const FRONTEND_URL = "http://localhost:5173";
   // Signify logo bundled with the extension (used in rail toggle + modal).
   const LOGO_URL = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL("icons/logo.png") : "";
 
@@ -281,6 +281,29 @@
 
   // Video "đứng yên" phát khi rảnh hoặc khi một từ không có clip riêng.
   const IDLE_VIDEO_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload/dung-im.mp4";
+  const FIXED_DEMO_CONFIGS = {
+    "9yGEEb0CRl4": {
+      name: "EXE-V1",
+      timelineUrl: chrome.runtime.getURL("demo/timeline-v1.json"),
+      folder: "demo/signs-v1/",
+      idleClip: "demo/signs-v1/dung_im.mp4",
+      matchMode: "window"
+    },
+    "J7b0jxVB1TE": {
+      name: "EXE_ENG",
+      timelineUrl: chrome.runtime.getURL("demo/timeline-eng.json"),
+      folder: "demo/signs-eng/",
+      idleClip: "demo/signs-eng/dung_im.mp4",
+      matchMode: "latest-start"
+    },
+    "VG8apSF2018": {
+      name: "DEMO_3_VSL",
+      timelineUrl: chrome.runtime.getURL("demo/timeline-v3.json"),
+      folder: "demo/signs-v3/",
+      idleClip: "demo/signs-v3/dung-im.mp4",
+      matchMode: "queue"
+    }
+  };
   const FREE_DAILY_LIMIT_MESSAGE = "Bạn đã dùng hết 20 phút miễn phí hôm nay. Đăng ký gói để tiếp tục xem phụ đề ký hiệu.";
 
   let overlayContainer = null;
@@ -297,6 +320,19 @@
   let usageSessionId = null;
   let usageHeartbeatTimer = null;
   let quotaBlocked = false;
+
+  // Fixed demo engine state.
+  let fixedDemoTimeline = [];
+  let fixedDemoVideoId = "";
+  let fixedDemoSegmentIndex = -1;
+  let fixedDemoSequenceId = 0;
+  let fixedDemoActivePlayer = null;
+  let fixedDemoBufferPlayer = null;
+  let fixedDemoClipQueue = [];
+  let fixedDemoQueuePlaying = false;
+  let fixedDemoQueuedSegmentIndexes = new Set();
+  let fixedDemoWasAdPlaying = false;
+  let fixedDemoHasEnded = false;
 
   // ═══════════════════════════════════════════════════════════════════
   // TRANSLATION ENABLE GATE
@@ -434,6 +470,7 @@
 
           // Restart everything
           if (overlayVisible && getYouTubeVideoId()) {
+            activeVideoId = '';
             setTimeout(() => {
               handlePageTransition();
             }, 500);
@@ -443,7 +480,7 @@
     });
   }
 
-  function showSignifyLimitModal(message, authRequired = false) {
+  function showSignifyLimitModal(message, authRequired = false, options = {}) {
     let modal = document.getElementById('signify-limit-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -455,10 +492,12 @@
     modal.innerHTML = `
       <div class="signify-limit-card">
         <div class="signify-limit-icon"><img class="signify-limit-logo" src="${LOGO_URL}" alt="Signify" /></div>
-        <div class="signify-limit-title">${authRequired ? 'Cần đăng nhập Signify' : 'Đã hết 20 phút hôm nay'}</div>
+        <div class="signify-limit-title">${options.title || (authRequired ? 'Cần đăng nhập Signify' : 'Đã hết 20 phút hôm nay')}</div>
         <div class="signify-limit-message">${message}</div>
         <div class="signify-limit-actions">
-          ${authRequired ? '<button class="signify-limit-primary" id="signify-modal-login-btn">Đăng nhập</button>' : '<button class="signify-limit-primary" id="signify-modal-upgrade-btn">Đăng ký gói</button>'}
+          ${authRequired
+            ? '<button class="signify-limit-primary" id="signify-modal-login-btn">Đăng nhập</button>'
+            : (options.showUpgrade === false ? '' : '<button class="signify-limit-primary" id="signify-modal-upgrade-btn">Đăng ký gói</button>')}
           <button class="signify-limit-secondary" id="signify-modal-close-btn">Đóng</button>
         </div>
       </div>
@@ -477,6 +516,7 @@
     quotaBlocked = true;
     animationQueue = [];
     clearTimeout(animationTimeout);
+    cancelFixedDemoPlayback({ clearConsumed: true, hidePlayers: true });
 
     const ytVideo = document.querySelector('video.html5-main-video');
     if (ytVideo) ytVideo.removeEventListener('timeupdate', handleTimelineUpdate);
@@ -631,6 +671,8 @@
         </div>
         <div class="signify-video-container">
           <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
+          <video id="signify-demo-player-1" class="signify-video" muted playsinline style="display:none;"></video>
+          <video id="signify-demo-player-2" class="signify-video" muted playsinline style="display:none;"></video>
           <div id="signify-fallback-card" class="signify-fallback-card">
             <span class="signify-fallback-label">DỊCH KÝ HIỆU</span>
             <span id="signify-fallback-word" class="signify-fallback-word">Chờ dịch...</span>
@@ -684,9 +726,10 @@
           // Dừng các pipeline đang chạy
           isSyncActive = false;
           lastActiveSegment = null;
-          if (observer) { observer.disconnect(); observer = null; }
-          clearTimeout(subtitleDebounceTimeout);
-          setHideNativeCaptions(false);
+           if (observer) { observer.disconnect(); observer = null; }
+           clearTimeout(subtitleDebounceTimeout);
+           stopFixedDemoSync();
+           setHideNativeCaptions(false);
           activeVideoId = ''; // Reset để lần bật tiếp theo sẽ load lại
           playIdleVideo();
         }
@@ -1029,8 +1072,462 @@
     }
   }
 
+  function readCurrentVideoMetadata() {
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({ action: 'get_current_video_metadata' }, (response) => {
+        if (chrome.runtime.lastError || !response?.success) {
+          resolve(null);
+          return;
+        }
+        resolve(response.data || null);
+      });
+    });
+  }
+
+  async function buildFixedDemoAuthorizationRequest(videoId) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      const metadata = await readCurrentVideoMetadata();
+      const metadataMatches = metadata?.videoId === videoId;
+      const ytVideo = document.querySelector('video.html5-main-video');
+      const isAdPlaying = Boolean(document.querySelector('.html5-video-player.ad-showing'));
+      const domDuration = !isAdPlaying && Number.isFinite(ytVideo?.duration)
+        ? Math.ceil(ytVideo.duration)
+        : 0;
+      const durationSeconds = metadataMatches && metadata.durationSeconds > 0
+        ? metadata.durationSeconds
+        : domDuration;
+
+      if (durationSeconds > 0) {
+        const fallbackTitle = (document.title || '').replace(/\s+-\s+YouTube\s*$/, '').trim();
+        return {
+          videoId,
+          durationSeconds,
+          videoTitle: metadataMatches && metadata.videoTitle ? metadata.videoTitle : fallbackTitle,
+          videoUrl: `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`,
+          channelName: metadataMatches ? (metadata.channelName || '') : ''
+        };
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
+
+    throw new Error('Không xác định được thời lượng video. Vui lòng thử lại sau khi video tải xong.');
+  }
+
+  async function authorizeFixedDemo(videoId) {
+    let requestData;
+    try {
+      requestData = await buildFixedDemoAuthorizationRequest(videoId);
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+
+    return new Promise((resolve) => {
+      chrome.runtime.sendMessage({
+        action: 'authorize_fixed_demo',
+        requestData
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve({ success: false, error: chrome.runtime.lastError.message });
+          return;
+        }
+        resolve(response || { success: false, error: 'Backend không trả về kết quả cấp quyền.' });
+      });
+    });
+  }
+
+  function isFixedDemoVideo(videoId = getYouTubeVideoId()) {
+    return Boolean(videoId && FIXED_DEMO_CONFIGS[videoId]);
+  }
+
+  function getFixedDemoPlayers() {
+    const primary = document.getElementById('signify-demo-player-1');
+    const buffer = document.getElementById('signify-demo-player-2');
+    if (!fixedDemoActivePlayer || !fixedDemoActivePlayer.isConnected ||
+        !fixedDemoBufferPlayer || !fixedDemoBufferPlayer.isConnected) {
+      fixedDemoActivePlayer = primary;
+      fixedDemoBufferPlayer = buffer;
+    }
+    return { primary, buffer };
+  }
+
+  function resolveFixedDemoClipPath(clipPath) {
+    if (!clipPath) return clipPath;
+    if (clipPath.startsWith('demo/')) return clipPath;
+    const config = FIXED_DEMO_CONFIGS[fixedDemoVideoId];
+    return `${config?.folder || ''}${clipPath.replace(/^signs\//, '')}`;
+  }
+
+  function showOnlyFixedDemoPlayer(playerToShow) {
+    const normalPlayer = document.getElementById('signify-video-player');
+    if (normalPlayer) {
+      normalPlayer.pause();
+      normalPlayer.style.display = 'none';
+    }
+
+    const { primary, buffer } = getFixedDemoPlayers();
+    for (const player of [primary, buffer]) {
+      if (!player) continue;
+      const active = player === playerToShow;
+      player.style.display = active ? 'block' : 'none';
+      player.style.visibility = active ? 'visible' : 'hidden';
+    }
+  }
+
+  function preloadFixedDemoClip(player, clipPath) {
+    return new Promise((resolve) => {
+      if (!player || !clipPath) {
+        resolve();
+        return;
+      }
+
+      const resolvedPath = resolveFixedDemoClipPath(clipPath);
+      if (player.dataset.demoClip === resolvedPath && player.readyState >= 2) {
+        resolve();
+        return;
+      }
+
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        player.oncanplaythrough = null;
+        player.onerror = null;
+        resolve();
+      };
+      const timeoutId = setTimeout(finish, 8000);
+
+      player.oncanplaythrough = finish;
+      player.onerror = finish;
+      player.dataset.demoClip = resolvedPath;
+      player.src = chrome.runtime.getURL(resolvedPath);
+      player.load();
+      if (player.readyState >= 3) finish();
+    });
+  }
+
+  function isYouTubeAdPlaying() {
+    const moviePlayer = document.getElementById('movie_player');
+    return Boolean(
+      moviePlayer?.classList.contains('ad-showing') ||
+      moviePlayer?.classList.contains('ad-interrupting') ||
+      document.querySelector('.video-ads.ytp-ad-module .ytp-ad-player-overlay, .ytp-ad-preview-container, .ytp-ad-text')
+    );
+  }
+
+  const fixedDemoPendingPlaybackResolvers = new Set();
+
+  function waitForFixedDemoPlayback(player) {
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        fixedDemoPendingPlaybackResolvers.delete(finish);
+        player.onended = null;
+        player.onerror = null;
+        resolve();
+      };
+
+      fixedDemoPendingPlaybackResolvers.add(finish);
+      player.onended = finish;
+      player.onerror = finish;
+      player.play().catch(finish);
+    });
+  }
+
+  function cancelFixedDemoPlayback({ clearConsumed = false, hidePlayers = false } = {}) {
+    fixedDemoSequenceId++;
+    fixedDemoClipQueue = [];
+    fixedDemoQueuePlaying = false;
+    if (clearConsumed) fixedDemoQueuedSegmentIndexes.clear();
+
+    for (const finish of [...fixedDemoPendingPlaybackResolvers]) finish();
+
+    const { primary, buffer } = getFixedDemoPlayers();
+    for (const player of [primary, buffer]) {
+      if (!player) continue;
+      player.pause();
+      player.onended = null;
+      player.onerror = null;
+      player.oncanplaythrough = null;
+      if (hidePlayers) player.style.display = 'none';
+    }
+  }
+
+  async function loadFixedDemo(videoId) {
+    const config = FIXED_DEMO_CONFIGS[videoId];
+    if (!config) return false;
+    if (fixedDemoVideoId === videoId && fixedDemoTimeline.length > 0) return true;
+
+    cancelFixedDemoPlayback({ clearConsumed: true, hidePlayers: true });
+    fixedDemoVideoId = videoId;
+    fixedDemoSegmentIndex = -1;
+    fixedDemoWasAdPlaying = false;
+    fixedDemoHasEnded = false;
+
+    const response = await fetch(config.timelineUrl);
+    if (!response.ok) throw new Error(`Không tải được timeline ${config.name}`);
+    fixedDemoTimeline = await response.json();
+    console.log(`[SIGNIFY DEMO LOCAL] loaded ${config.name}:`, fixedDemoTimeline.length, 'segments');
+    return true;
+  }
+
+  function findFixedDemoSegmentIndex(currentTime) {
+    const config = FIXED_DEMO_CONFIGS[fixedDemoVideoId];
+    if (!config) return -1;
+
+    if (config.matchMode === 'latest-start') {
+      let activeIndex = -1;
+      for (let index = 0; index < fixedDemoTimeline.length; index++) {
+        const segment = fixedDemoTimeline[index];
+        const trigger = segment.start - (segment.lead || 0);
+        if (currentTime >= trigger) activeIndex = index;
+      }
+      return activeIndex;
+    }
+
+    for (let index = fixedDemoTimeline.length - 1; index >= 0; index--) {
+      const segment = fixedDemoTimeline[index];
+      const trigger = segment.start - (segment.lead || 0);
+      if (currentTime >= trigger && currentTime < segment.end) return index;
+    }
+    return -1;
+  }
+
+  function playFixedDemoIdle() {
+    if (!fixedDemoVideoId || quotaBlocked) return;
+    const config = FIXED_DEMO_CONFIGS[fixedDemoVideoId];
+    const { primary, buffer } = getFixedDemoPlayers();
+    if (!config || !primary || !buffer) return;
+
+    fixedDemoSequenceId++;
+    for (const finish of [...fixedDemoPendingPlaybackResolvers]) finish();
+    fixedDemoActivePlayer = primary;
+    fixedDemoBufferPlayer = buffer;
+    primary.pause();
+    buffer.pause();
+    primary.onended = null;
+    primary.onerror = null;
+    primary.src = chrome.runtime.getURL(config.idleClip);
+    primary.loop = true;
+    primary.load();
+    primary.play().catch(() => {});
+    showOnlyFixedDemoPlayer(primary);
+  }
+
+  async function playFixedDemoSequence(segment) {
+    if (!segment || !Array.isArray(segment.clips) || segment.clips.length === 0) return;
+
+    fixedDemoSequenceId++;
+    const sequenceId = fixedDemoSequenceId;
+    const { primary, buffer } = getFixedDemoPlayers();
+    if (!primary || !buffer) return;
+    if (!fixedDemoActivePlayer || !fixedDemoBufferPlayer) {
+      fixedDemoActivePlayer = primary;
+      fixedDemoBufferPlayer = buffer;
+    }
+
+    for (let index = 0; index < segment.clips.length; index++) {
+      if (sequenceId !== fixedDemoSequenceId) return;
+      const currentClip = segment.clips[index];
+      const nextClip = segment.clips[index + 1];
+
+      await preloadFixedDemoClip(fixedDemoActivePlayer, currentClip);
+      if (sequenceId !== fixedDemoSequenceId) return;
+      if (nextClip) preloadFixedDemoClip(fixedDemoBufferPlayer, nextClip);
+
+      fixedDemoActivePlayer.loop = false;
+      showOnlyFixedDemoPlayer(fixedDemoActivePlayer);
+      console.log('[SIGNIFY DEMO LOCAL] PLAY', currentClip);
+      await waitForFixedDemoPlayback(fixedDemoActivePlayer);
+      if (sequenceId !== fixedDemoSequenceId) return;
+
+      const previousPlayer = fixedDemoActivePlayer;
+      fixedDemoActivePlayer = fixedDemoBufferPlayer;
+      fixedDemoBufferPlayer = previousPlayer;
+    }
+
+    if (sequenceId === fixedDemoSequenceId) playFixedDemoIdle();
+  }
+
+  async function playFixedDemoQueue() {
+    if (fixedDemoQueuePlaying || quotaBlocked || fixedDemoClipQueue.length === 0) return;
+
+    fixedDemoQueuePlaying = true;
+    fixedDemoSequenceId++;
+    const sequenceId = fixedDemoSequenceId;
+    const { primary, buffer } = getFixedDemoPlayers();
+    if (!primary || !buffer) {
+      fixedDemoQueuePlaying = false;
+      return;
+    }
+    if (!fixedDemoActivePlayer || !fixedDemoBufferPlayer) {
+      fixedDemoActivePlayer = primary;
+      fixedDemoBufferPlayer = buffer;
+    }
+
+    while (fixedDemoClipQueue.length > 0 && sequenceId === fixedDemoSequenceId) {
+      const currentClip = fixedDemoClipQueue.shift();
+      const nextClip = fixedDemoClipQueue[0];
+
+      await preloadFixedDemoClip(fixedDemoActivePlayer, currentClip);
+      if (sequenceId !== fixedDemoSequenceId) break;
+      if (nextClip) preloadFixedDemoClip(fixedDemoBufferPlayer, nextClip);
+
+      fixedDemoActivePlayer.loop = false;
+      showOnlyFixedDemoPlayer(fixedDemoActivePlayer);
+      console.log('[SIGNIFY DEMO LOCAL] PLAY QUEUED', currentClip);
+      await waitForFixedDemoPlayback(fixedDemoActivePlayer);
+      if (sequenceId !== fixedDemoSequenceId) return;
+
+      const previousPlayer = fixedDemoActivePlayer;
+      fixedDemoActivePlayer = fixedDemoBufferPlayer;
+      fixedDemoBufferPlayer = previousPlayer;
+    }
+
+    if (sequenceId !== fixedDemoSequenceId) return;
+    fixedDemoQueuePlaying = false;
+    if (fixedDemoClipQueue.length > 0) playFixedDemoQueue();
+    else playFixedDemoIdle();
+  }
+
+  function enqueueFixedDemoSegment(segment, segmentIndex) {
+    if (!segment || !Array.isArray(segment.clips) || segment.clips.length === 0) return;
+    if (fixedDemoQueuedSegmentIndexes.has(segmentIndex)) return;
+    fixedDemoQueuedSegmentIndexes.add(segmentIndex);
+    fixedDemoClipQueue.push(...segment.clips);
+    playFixedDemoQueue();
+  }
+
+  function handleFixedDemoQueueTimelineUpdate(currentTime, resetToCurrent = false) {
+    if (resetToCurrent) {
+      cancelFixedDemoPlayback({ clearConsumed: true });
+      let latestIndex = -1;
+      for (let index = 0; index < fixedDemoTimeline.length; index++) {
+        const segment = fixedDemoTimeline[index];
+        const trigger = segment.start - (segment.lead || 0);
+        if (currentTime >= trigger) latestIndex = index;
+      }
+      for (let index = 0; index < latestIndex; index++) {
+        fixedDemoQueuedSegmentIndexes.add(index);
+      }
+      if (latestIndex >= 0) enqueueFixedDemoSegment(fixedDemoTimeline[latestIndex], latestIndex);
+      else playFixedDemoIdle();
+      return;
+    }
+
+    for (let index = 0; index < fixedDemoTimeline.length; index++) {
+      const segment = fixedDemoTimeline[index];
+      const trigger = segment.start - (segment.lead || 0);
+      if (currentTime >= trigger) enqueueFixedDemoSegment(segment, index);
+    }
+  }
+
+  function handleFixedDemoSeeking(event) {
+    if (FIXED_DEMO_CONFIGS[fixedDemoVideoId]?.matchMode !== 'queue') return;
+    if (isYouTubeAdPlaying()) return;
+    fixedDemoHasEnded = false;
+    setTimeout(() => {
+      if (!fixedDemoVideoId || event.target.ended || isYouTubeAdPlaying()) return;
+      handleFixedDemoQueueTimelineUpdate(event.target.currentTime, true);
+    }, 0);
+  }
+
+  function handleFixedDemoEnded() {
+    if (!fixedDemoVideoId) return;
+    fixedDemoHasEnded = true;
+    cancelFixedDemoPlayback();
+    playFixedDemoIdle();
+  }
+
+  function handleFixedDemoTimelineUpdate(event) {
+    const youtubePlayer = event.target;
+    const currentTime = youtubePlayer.currentTime;
+
+    if (isYouTubeAdPlaying()) {
+      if (!fixedDemoWasAdPlaying) {
+        fixedDemoWasAdPlaying = true;
+        fixedDemoHasEnded = false;
+        cancelFixedDemoPlayback({ clearConsumed: true });
+        playFixedDemoIdle();
+      }
+      return;
+    }
+
+    const config = FIXED_DEMO_CONFIGS[fixedDemoVideoId];
+    if (fixedDemoWasAdPlaying) {
+      fixedDemoWasAdPlaying = false;
+      fixedDemoHasEnded = false;
+      if (config?.matchMode === 'queue') {
+        handleFixedDemoQueueTimelineUpdate(currentTime, true);
+        return;
+      }
+    }
+
+    if (!config || youtubePlayer.ended || fixedDemoHasEnded) return;
+    if (config.matchMode === 'queue') {
+      handleFixedDemoQueueTimelineUpdate(currentTime, false);
+      return;
+    }
+
+    const newIndex = findFixedDemoSegmentIndex(currentTime);
+    if (youtubePlayer.seeking || newIndex !== fixedDemoSegmentIndex) {
+      fixedDemoSegmentIndex = newIndex;
+      if (newIndex >= 0) playFixedDemoSequence(fixedDemoTimeline[newIndex]);
+      else playFixedDemoIdle();
+    }
+  }
+
+  function startFixedDemoSync() {
+    const youtubePlayer = document.querySelector('video.html5-main-video') || document.querySelector('video');
+    if (!youtubePlayer || !fixedDemoVideoId) return;
+
+    youtubePlayer.removeEventListener('timeupdate', handleTimelineUpdate);
+    youtubePlayer.removeEventListener('timeupdate', handleFixedDemoTimelineUpdate);
+    youtubePlayer.removeEventListener('seeking', handleFixedDemoSeeking);
+    youtubePlayer.removeEventListener('ended', handleFixedDemoEnded);
+    youtubePlayer.addEventListener('timeupdate', handleFixedDemoTimelineUpdate);
+    youtubePlayer.addEventListener('seeking', handleFixedDemoSeeking);
+    youtubePlayer.addEventListener('ended', handleFixedDemoEnded);
+
+    fixedDemoWasAdPlaying = isYouTubeAdPlaying();
+    fixedDemoHasEnded = false;
+    isSyncActive = true;
+    playFixedDemoIdle();
+
+    if (FIXED_DEMO_CONFIGS[fixedDemoVideoId]?.matchMode === 'queue' && youtubePlayer.currentTime > 0) {
+      handleFixedDemoQueueTimelineUpdate(youtubePlayer.currentTime, true);
+    }
+    console.log(`[SIGNIFY DEMO LOCAL] active: ${FIXED_DEMO_CONFIGS[fixedDemoVideoId]?.name}`);
+  }
+
+  function stopFixedDemoSync() {
+    const youtubePlayer = document.querySelector('video.html5-main-video') || document.querySelector('video');
+    if (youtubePlayer) {
+      youtubePlayer.removeEventListener('timeupdate', handleFixedDemoTimelineUpdate);
+      youtubePlayer.removeEventListener('seeking', handleFixedDemoSeeking);
+      youtubePlayer.removeEventListener('ended', handleFixedDemoEnded);
+    }
+
+    cancelFixedDemoPlayback({ clearConsumed: true, hidePlayers: true });
+    fixedDemoTimeline = [];
+    fixedDemoVideoId = '';
+    fixedDemoSegmentIndex = -1;
+    fixedDemoWasAdPlaying = false;
+    fixedDemoHasEnded = false;
+
+    const normalPlayer = document.getElementById('signify-video-player');
+    if (normalPlayer) normalPlayer.style.display = 'block';
+  }
+
   // Phát video "đứng yên" lặp lại (trạng thái chờ).
   function playIdleVideo() {
+    if (fixedDemoVideoId) {
+      playFixedDemoIdle();
+      return;
+    }
     if (quotaBlocked) return;
     const videoPlayer = document.getElementById('signify-video-player');
     if (!videoPlayer) return;
@@ -1871,6 +2368,7 @@
       fullTranscript = [];
       lastActiveSegment = null;
       isSyncActive = false;
+      stopFixedDemoSync();
       setHideNativeCaptions(false); // Rời trang watch: trả CC về bình thường
       stopUsageSession();
       return;
@@ -1903,6 +2401,46 @@
 
       const captionText = document.getElementById('signify-caption-text');
       if (captionText) captionText.textContent = "Đang kiểm tra ký hiệu có sẵn từ máy chủ...";
+
+      if (isFixedDemoVideo(currentVideoId)) {
+        if (observer) {
+          observer.disconnect();
+          observer = null;
+        }
+        setHideNativeCaptions(false);
+        if (captionText) captionText.textContent = "Đang kiểm tra quyền sử dụng video...";
+
+        const authorization = await authorizeFixedDemo(currentVideoId);
+        if (getYouTubeVideoId() !== currentVideoId || activeVideoId !== currentVideoId) return;
+        if (!authorization.success) {
+          stopFixedDemoSync();
+          const message = authorization.error || 'Không thể cấp quyền sử dụng video.';
+          if (captionText) captionText.textContent = message;
+          if (!handleQuotaOrAuthResponse(authorization)) {
+            const canUpgrade = authorization.code === 'SCHOOL_AI_MONTHLY_LIMIT_REACHED'
+              || authorization.code === 'SCHOOL_AI_DAILY_LIMIT_REACHED';
+            showSignifyLimitModal(message, false, {
+              title: 'Không thể bắt đầu dịch',
+              showUpgrade: canUpgrade
+            });
+          }
+          return;
+        }
+
+        try {
+          await loadFixedDemo(currentVideoId);
+          if (getYouTubeVideoId() !== currentVideoId || activeVideoId !== currentVideoId) return;
+          startFixedDemoSync();
+          if (captionText) captionText.textContent = "Chế độ demo tối ưu";
+        } catch (error) {
+          console.error("Không khởi động được fixed demo:", error);
+          if (captionText) captionText.textContent = "Lỗi tải dữ liệu demo";
+        }
+        return;
+      }
+
+      // Rời video demo để trở lại luồng backend/Cloudinary thông thường.
+      stopFixedDemoSync();
 
       console.log(`🔍 [Signify Extension] Gửi GET request đến BE kiểm tra trường signLanguage cho videoId: "${currentVideoId}"`);
 
@@ -1967,7 +2505,8 @@
       });
     } else if (!isSyncActive) {
       // In case we are on the same video but the video element re-rendered
-      startTimelineSync();
+      if (isFixedDemoVideo(currentVideoId)) startFixedDemoSync();
+      else startTimelineSync();
     }
   }
 
