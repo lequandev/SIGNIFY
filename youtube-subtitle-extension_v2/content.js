@@ -370,6 +370,103 @@
   let quotaBlocked = false;
 
   // ═══════════════════════════════════════════════════════════════════
+  // DEMO TIMELINES MAPPING TABLE & DUAL-BUFFER PLAYER STATE
+  // Ánh xạ 3 video demo -> file timeline local tương ứng
+  // ═══════════════════════════════════════════════════════════════════
+  const DEMO_TIMELINE_MAP = {
+    "SflJFE11Y6M": "demo/timeline-v1.json", // Demo 1 (Tiếng Việt)
+    "demo1": "demo/timeline-v1.json",
+    "demo2": "demo/timeline-eng.json",      // Demo 2 (Tiếng Anh)
+    "demo3": "demo/timeline-v3.json"       // Demo 3 (VSL final timeline)
+  };
+
+  let activePlayerIndex = 0; // 0 hoặc 1 (đệm 2 video player để chuyển mượt không đen màn)
+
+  function getActiveVideoPlayer() {
+    return document.getElementById(`signify-video-player-${activePlayerIndex}`) ||
+           document.getElementById('signify-video-player-0') ||
+           document.getElementById('signify-video-player');
+  }
+
+  function getStandbyVideoPlayer() {
+    return document.getElementById(`signify-video-player-${1 - activePlayerIndex}`) ||
+           document.getElementById('signify-video-player-1');
+  }
+
+  function bindVideoPlayerEvents(player) {
+    if (!player) return;
+    player.removeEventListener('ended', playNextAnimation);
+    player.addEventListener('ended', playNextAnimation);
+    player.removeEventListener('error', handleVideoError);
+    player.addEventListener('error', handleVideoError);
+  }
+
+  function handleVideoError(e) {
+    const badSrc = e.target ? (e.target.currentSrc || e.target.src || '') : '';
+    if (badSrc && !badSrc.includes('dung-im')) {
+      console.warn('[Signify] Video không tải được, chuyển sang kế tiếp:', badSrc);
+    }
+    handlePlaybackError();
+  }
+
+  function getDemoTimelinePath(videoId) {
+    if (!videoId) return null;
+    if (DEMO_TIMELINE_MAP[videoId]) return DEMO_TIMELINE_MAP[videoId];
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const demoParam = urlParams.get('demo') || urlParams.get('vsl_demo');
+    if (demoParam === '1' || demoParam === 'v1') return "demo/timeline-v1.json";
+    if (demoParam === '2' || demoParam === 'eng') return "demo/timeline-eng.json";
+    if (demoParam === '3' || demoParam === 'v3') return "demo/timeline-v3.json";
+
+    return null;
+  }
+
+  async function loadDemoTimeline(timelinePath) {
+    if (!chrome.runtime || !chrome.runtime.getURL) return false;
+    const fullUrl = chrome.runtime.getURL(timelinePath);
+    console.log(`🎬 [Signify] Khởi chạy demo timeline local: ${timelinePath}`);
+
+    try {
+      const response = await fetch(fullUrl);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+
+      fullTranscript = data.map(item => {
+        const startMs = (item.start || 0) * 1000;
+        const endMs = item.end ? (item.end * 1000) : (startMs + 5000);
+
+        const translatedSignData = (item.clips || []).map(clipPath => {
+          const fileName = clipPath.split('/').pop();
+          const cleanName = fileName.replace(/\.(mp4|mov|jpg|png)$/i, '');
+          const word = cleanName.replace(/[-_]/g, ' ');
+          return {
+            word: word,
+            animation: mapWordToAnimation(word) || chrome.runtime.getURL(clipPath)
+          };
+        });
+
+        return {
+          start: startMs,
+          end: endMs,
+          text: item.text || "",
+          translatedSignData: translatedSignData,
+          isFetching: false
+        };
+      });
+
+      console.log(`✅ [Signify] Nạp thành công ${fullTranscript.length} phân đoạn demo timeline!`);
+      const captionText = document.getElementById('signify-caption-text');
+      if (captionText) captionText.textContent = "Signify đã đồng bộ dòng thời gian demo!";
+      startTimelineSync();
+      return true;
+    } catch (e) {
+      console.error(`❌ [Signify] Lỗi khi nạp demo timeline ${timelinePath}:`, e);
+      return false;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // REMOTE URL VALIDATION CACHE
   // HEAD request có cache để tránh ERR_FILE_NOT_FOUND lặp lại.
   // Cloudinary URL không tồn tại (404) → dùng IDLE thay vì load vào <video>.
@@ -733,7 +830,8 @@
           </div>
         </div>
         <div class="signify-video-container">
-          <video id="signify-video-player" class="signify-video" muted autoplay playsinline></video>
+          <video id="signify-video-player-0" class="signify-video signify-video-active" muted autoplay playsinline></video>
+          <video id="signify-video-player-1" class="signify-video signify-video-standby" muted playsinline style="opacity:0; display:none;"></video>
           <div id="signify-fallback-card" class="signify-fallback-card">
             <span class="signify-fallback-label">DỊCH KÝ HIỆU</span>
             <span id="signify-fallback-word" class="signify-fallback-word">Chờ dịch...</span>
@@ -1115,16 +1213,11 @@
       });
     }
 
-    // Bind video events safely
-    const videoPlayer = document.getElementById('signify-video-player');
-    videoPlayer.addEventListener('ended', playNextAnimation);
-    videoPlayer.addEventListener('error', (e) => {
-      const badSrc = videoPlayer.currentSrc || videoPlayer.src || '';
-      if (badSrc && !badSrc.includes('dung-im')) {
-        console.warn('[Signify] Video không tải được, chuyển sang kế tiếp:', badSrc);
-      }
-      handlePlaybackError();
-    });
+    // Bind dual video players safely
+    const videoPlayer0 = document.getElementById('signify-video-player-0');
+    const videoPlayer1 = document.getElementById('signify-video-player-1');
+    bindVideoPlayerEvents(videoPlayer0);
+    bindVideoPlayerEvents(videoPlayer1);
 
     // Ngay khi tạo overlay: phát video đứng yên làm trạng thái chờ nếu còn lượt miễn phí.
     if (quotaBlocked) {
@@ -1138,8 +1231,9 @@
   // Phát video "đứng yên" lặp lại (trạng thái chờ).
   function playIdleVideo() {
     if (quotaBlocked) return;
-    const videoPlayer = document.getElementById('signify-video-player');
-    if (!videoPlayer) return;
+    const activePlayer = getActiveVideoPlayer();
+    const standbyPlayer = getStandbyVideoPlayer();
+    if (!activePlayer) return;
     isPlaying = false;
 
     // Khi phát video đứng yên (nghỉ), xóa chữ hiển thị
@@ -1148,15 +1242,25 @@
       captionText.textContent = "";
     }
 
-    videoPlayer.style.display = 'block';
-    videoPlayer.loop = true;
-    // Chỉ nạp lại nếu chưa phải clip đứng yên (tránh giật khi gọi liên tục).
-    if (videoPlayer.getAttribute('data-idle') !== '1') {
-      videoPlayer.src = IDLE_VIDEO_URL;
-      videoPlayer.setAttribute('data-idle', '1');
-      videoPlayer.load();
+    activePlayer.style.display = 'block';
+    activePlayer.style.opacity = '1';
+    activePlayer.classList.add('signify-video-active');
+    activePlayer.classList.remove('signify-video-standby');
+    activePlayer.loop = true;
+
+    if (standbyPlayer) {
+      standbyPlayer.style.opacity = '0';
+      standbyPlayer.classList.add('signify-video-standby');
+      standbyPlayer.classList.remove('signify-video-active');
+      try { standbyPlayer.pause(); } catch (e) {}
     }
-    videoPlayer.play().catch(() => { });
+
+    if (activePlayer.getAttribute('data-idle') !== '1') {
+      activePlayer.src = IDLE_VIDEO_URL;
+      activePlayer.setAttribute('data-idle', '1');
+      activePlayer.load();
+    }
+    activePlayer.play().catch(() => { });
   }
 
   // Khi clip lỗi: sang clip kế tiếp mượt mà (50ms). Nếu queue rỗng → phát idle.
@@ -1205,17 +1309,58 @@
     const srcUrl = hasVideo ? currentSign.animation : IDLE_VIDEO_URL;
 
     function executeVideoPlay(finalSrc) {
-      if (!videoPlayer) return;
-      videoPlayer.style.display = 'block';
-      videoPlayer.loop = false;
-      videoPlayer.removeAttribute('data-idle');
-      videoPlayer.src = finalSrc;
-      videoPlayer.load();
-      videoPlayer.play().catch(err => {
+      const activePlayer = getActiveVideoPlayer();
+      const standbyPlayer = getStandbyVideoPlayer();
+
+      if (!activePlayer) return;
+
+      if (!standbyPlayer) {
+        activePlayer.style.display = 'block';
+        activePlayer.loop = false;
+        activePlayer.removeAttribute('data-idle');
+        activePlayer.src = finalSrc;
+        activePlayer.load();
+        activePlayer.play().catch(err => {
+          if (err && err.name !== 'AbortError') {
+            console.warn('[Signify] Không thể phát clip:', err.message || err);
+          }
+          animationTimeout = setTimeout(playNextAnimation, 50);
+        });
+        return;
+      }
+
+      // Smooth Dual-buffered swap
+      standbyPlayer.style.display = 'block';
+      standbyPlayer.removeAttribute('data-idle');
+      standbyPlayer.loop = false;
+      standbyPlayer.src = finalSrc;
+      standbyPlayer.load();
+
+      const doSwap = () => {
+        standbyPlayer.style.opacity = '1';
+        standbyPlayer.classList.add('signify-video-active');
+        standbyPlayer.classList.remove('signify-video-standby');
+
+        activePlayer.style.opacity = '0';
+        activePlayer.classList.remove('signify-video-active');
+        activePlayer.classList.add('signify-video-standby');
+
+        setTimeout(() => {
+          try { activePlayer.pause(); activePlayer.style.display = 'none'; } catch (e) {}
+        }, 150);
+
+        activePlayerIndex = 1 - activePlayerIndex;
+      };
+
+      standbyPlayer.play().then(() => {
+        doSwap();
+      }).catch(err => {
         if (err && err.name !== 'AbortError') {
-          console.warn('[Signify] Không thể phát clip:', err.message || err);
+          console.warn('[Signify] Dual-buffer play error, falling back:', err.message || err);
         }
-        animationTimeout = setTimeout(playNextAnimation, 50);
+        activePlayer.src = finalSrc;
+        activePlayer.load();
+        activePlayer.play().catch(() => {});
       });
     }
 
@@ -2057,7 +2202,15 @@
       fullSignSequence = [];  // Reset mảng ký hiệu sau khi đã gửi BE
 
       const captionText = document.getElementById('signify-caption-text');
-      if (captionText) captionText.textContent = "Đang kiểm tra ký hiệu có sẵn từ máy chủ...";
+      if (captionText) captionText.textContent = "Đang kiểm tra dữ liệu video...";
+
+      // Kiểm tra nếu là 1 trong 3 video demo -> khởi chạy demo timeline local
+      const demoTimelinePath = getDemoTimelinePath(currentVideoId);
+      if (demoTimelinePath) {
+        console.log(`🌟 [Signify] VideoId "${currentVideoId}" thuộc 3 demo! Khởi chạy demo timeline local: ${demoTimelinePath}`);
+        const loaded = await loadDemoTimeline(demoTimelinePath);
+        if (loaded) return;
+      }
 
       console.log(`🔍 [Signify Extension] Gửi GET request đến BE kiểm tra trường signLanguage cho videoId: "${currentVideoId}"`);
 

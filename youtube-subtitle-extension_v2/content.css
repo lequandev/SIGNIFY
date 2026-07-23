@@ -259,6 +259,22 @@
   max-height: 100%;
   object-fit: contain;
   display: block;
+  position: absolute;
+  top: 0;
+  left: 0;
+  transition: opacity 0.15s ease-in-out;
+}
+
+.signify-video-active {
+  opacity: 1;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.signify-video-standby {
+  opacity: 0;
+  z-index: 1;
+  pointer-events: none;
 }
 
 /* Expanded state styles */
