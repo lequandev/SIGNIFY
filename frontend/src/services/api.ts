@@ -1,6 +1,8 @@
 import axios from 'axios';
 
-const DEFAULT_API_URL = 'http://localhost:8080/api';
+const DEFAULT_API_URL = import.meta.env.DEV
+  ? 'http://localhost:8080/api'
+  : 'https://signify-g3zb.onrender.com/api';
 const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
 const rawApiUrl = (configuredApiUrl || DEFAULT_API_URL).replace(/\/+$/, '');
 export const API_BASE_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;

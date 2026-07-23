@@ -8,7 +8,7 @@ jwt:
   refresh-expiration-time: ${JWT_REFRESH_EXP_TIME:604800}
 
 cors:
-  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://signify-*.onrender.com,https://signify-i3rd.onrender.com,https://signify-g3zb.onrender.com}
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:https://signify-i3rd.onrender.com}
 
 app:
   name: Signify
@@ -17,8 +17,8 @@ payos:
   client-id: ${PAYOS_CLIENT_ID}
   api-key: ${PAYOS_API_KEY}
   checksum-key: ${PAYOS_CHECKSUM_KEY}
-  return-url: ${FRONTEND_URL:https://signify.onrender.com}/payment-success
-  cancel-url: ${FRONTEND_URL:https://signify.onrender.com}/payment-cancel
+  return-url: ${FRONTEND_URL:https://signify-i3rd.onrender.com}/payment-success
+  cancel-url: ${FRONTEND_URL:https://signify-i3rd.onrender.com}/payment-cancel
 
 google:
   client-id: ${GOOGLE_CLIENT_ID}
