@@ -1385,16 +1385,37 @@
     });
   }
 
-  // 3. Play Segment-Specific Sign Language Sequences
-  function playSegmentSignData(signDataList) {
-    if (quotaBlocked) return;
-    animationQueue = [...signDataList];
-    const videoPlayer = document.getElementById('signify-video-player');
-    if (videoPlayer) {
-      videoPlayer.pause();
+  // 3. Play Segment-Specific Sign Language Sequences (Non-destructive Queueing)
+  function playSegmentSignData(signDataList, options = {}) {
+    if (quotaBlocked || !signDataList || signDataList.length === 0) return;
+
+    const validSigns = signDataList.filter(item => item && (item.word || item.animation));
+    if (validSigns.length === 0) return;
+
+    if (options.replaceQueue) {
+      animationQueue = [...validSigns];
+    } else {
+      // Thêm các từ mới vào hàng đợi (queue) thay vì xóa hàng đợi cũ
+      // Tránh lặp lại từ giống hệt nằm ở cuối hàng đợi
+      for (const sign of validSigns) {
+        const lastInQueue = animationQueue[animationQueue.length - 1];
+        if (!lastInQueue || lastInQueue.word !== sign.word || lastInQueue.animation !== sign.animation) {
+          animationQueue.push(sign);
+        }
+      }
+
+      // Giới hạn hàng đợi tối đa 15 ký hiệu để tránh lag xa khỏi dòng thời gian
+      if (animationQueue.length > 15) {
+        animationQueue = animationQueue.slice(animationQueue.length - 15);
+      }
     }
-    isPlaying = false;
-    playNextAnimation();
+
+    // CHỈ gọi playNextAnimation nếu HIỆN TẠI KHÔNG CÓ video nào đang chạy (!isPlaying).
+    // Nếu có video đang chạy, TUYỆT ĐỐI KHÔNG ngắt hay pause video giữa chừng.
+    // Video đang chạy sẽ phát hết bth và sự kiện 'ended' sẽ tự động kích hoạt clip tiếp theo trong queue!
+    if (!isPlaying) {
+      playNextAnimation();
+    }
   }
 
   // 4. Send Subtitle Segment to Local Backend for Translation (AI-Backend-First with Local Fallback)
