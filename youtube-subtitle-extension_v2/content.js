@@ -393,18 +393,9 @@
            document.getElementById('signify-video-player-1');
   }
 
-  // Độ trễ nghỉ giữa 2 animation liên tiếp (700ms ~ 0.7 giây)
-  // Giúp trình duyệt kịp nạp video và người xem dễ theo dõi từng ký hiệu
-  const ANIMATION_INTER_CLIP_DELAY_MS = 700;
-
   function handleVideoEnded() {
     clearTimeout(animationTimeout);
-    if (animationQueue.length > 0) {
-      // Tạm dừng 700ms giữa 2 animation liên tiếp rồi mới phát từ tiếp theo
-      animationTimeout = setTimeout(playNextAnimation, ANIMATION_INTER_CLIP_DELAY_MS);
-    } else {
-      playIdleVideo();
-    }
+    playIdleVideo();
   }
 
   function bindVideoPlayerEvents(player) {
@@ -418,9 +409,9 @@
   function handleVideoError(e) {
     const badSrc = e.target ? (e.target.currentSrc || e.target.src || '') : '';
     if (badSrc && !badSrc.includes('dung-im')) {
-      console.warn('[Signify] Video không tải được, chuyển sang kế tiếp:', badSrc);
+      console.warn('[Signify] Video không tải được, chuyển sang trạng thái idle:', badSrc);
     }
-    handlePlaybackError();
+    playIdleVideo();
   }
 
   function getDemoTimelinePath(videoId) {
@@ -1277,22 +1268,12 @@
     activePlayer.play().catch(() => { });
   }
 
-  // Khi clip lỗi: sang clip kế tiếp mượt mà (50ms). Nếu queue rỗng → phát idle.
-  function handlePlaybackError() {
-    clearTimeout(animationTimeout);
-    if (animationQueue.length > 0) {
-      animationTimeout = setTimeout(playNextAnimation, 50);
-    } else {
-      playIdleVideo();
-    }
-  }
-
   // ═══════════════════════════════════════════════════════════════════
   // 2. STRICT SEQUENTIAL ANIMATION RUNNER (STT 1 -> N GUARANTEED)
   // ═══════════════════════════════════════════════════════════════════
 
   let isRunnerProcessing = false; // Mutex lock tránh chạy đè loop
-  const INTER_WORD_DELAY_MS = 800; // Khoảng nghỉ 0.8s giữa từ trước và từ sau
+  const INTER_WORD_DELAY_MS = 600; // Khoảng nghỉ 0.6s giữa từ trước và từ sau
 
   // 3. Play Segment-Specific Sign Language Sequences (Sequential Queueing)
   function playSegmentSignData(signDataList, options = {}) {
@@ -1324,7 +1305,8 @@
 
   /**
    * Vòng lặp xử lý mảng từ TUẦN TỰ từ STT 1 đến hết (Async/Await Loop)
-   * Từ trước phát xong 100% + nghỉ 800ms -> Từ sau mới bắt đầu chạy!
+   * Từ trước phát xong 100% -> Chuyển sang video đứng yên đệm (dung-im.mp4) -> Từ sau mới chạy.
+   * ĐẢM BẢO KHÔNG BAO GIỜ BỊ MÀN HÌNH ĐEN TRONG SUỐT QUÁ TRÌNH PHÁT!
    */
   async function processAnimationQueueSequentially() {
     if (isRunnerProcessing || quotaBlocked) return;
@@ -1351,9 +1333,13 @@
         // 2. Chờ từ hiện tại phát XONG 100% (Promise chỉ resolve khi video ended)
         await playSingleSignAnimationPromise(currentSign);
 
-        // 3. Khoảng nghỉ mượt (800ms) giữa từ trước và từ sau để tránh nuốt từ
-        if (animationQueue.length > 0 && translationEnabled) {
-          await new Promise(resolve => setTimeout(resolve, INTER_WORD_DELAY_MS));
+        // 3. Ngay khi từ kết thúc: phát video đứng yên (dung-im.mp4) làm đệm chuyển tiếp!
+        // Triệt tiêu hoàn toàn màn hình đen giữa các từ hoặc khi chờ từ tiếp theo từ timeline.
+        if (translationEnabled) {
+          playIdleVideo();
+          if (animationQueue.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, INTER_WORD_DELAY_MS));
+          }
         }
       }
     } catch (e) {
@@ -1362,7 +1348,7 @@
       isRunnerProcessing = false;
       isPlaying = false;
 
-      // Hết hàng đợi -> quay về video đứng yên trạng thái chờ (idle)
+      // Hết hàng đợi -> duy trì video đứng yên trạng thái chờ (idle)
       if (animationQueue.length === 0 && translationEnabled && !quotaBlocked) {
         playIdleVideo();
       }
