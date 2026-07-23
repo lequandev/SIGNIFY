@@ -94,6 +94,24 @@
     return out.join(" ").trim();
   }
 
+  // Khi ASR cuộn, đầu câu mới có thể trùng đuôi câu cũ. Cắt phần trùng đó, chỉ giữ phần mới.
+  function stripOverlapPrefix(prev, current) {
+    const prevWords = prev.toLowerCase().split(/\s+/);
+    const curWords = current.split(/\s+/);
+    const curLower = curWords.map(w => w.toLowerCase());
+    // Tìm overlap dài nhất: hậu tố của prev == tiền tố của current.
+    let maxOverlap = 0;
+    const limit = Math.min(prevWords.length, curWords.length);
+    for (let k = 1; k <= limit; k++) {
+      let match = true;
+      for (let j = 0; j < k; j++) {
+        if (prevWords[prevWords.length - k + j] !== curLower[j]) { match = false; break; }
+      }
+      if (match) maxOverlap = k;
+    }
+    return curWords.slice(maxOverlap).join(" ").trim();
+  }
+
   function splitTextIntoWords(text) {
     if (!text) return [];
 
@@ -136,9 +154,8 @@
   }
 
   // Production URLs (Render). Change these if BE/FE are redeployed elsewhere.
-  const BACKEND_URL = "http://localhost:8080";
-  const FRONTEND_URL = "http://localhost:5173";
-  const CLOUDINARY_VIDEO_BASE_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload";
+  const BACKEND_URL = "https://signify-g3zb.onrender.com";
+  const FRONTEND_URL = "https://signify-i3rd.onrender.com";
   // Signify logo bundled with the extension (used in rail toggle + modal).
   const LOGO_URL = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL("icons/logo.png") : "";
 
@@ -148,23 +165,7 @@
 
     // Tên file luôn không dấu + chữ thường, nối bằng '-'.
     const fileKey = stripVietnameseAccents(cleanWord.toLowerCase()).replace(/\s+/g, "-");
-    return `${CLOUDINARY_VIDEO_BASE_URL}/${fileKey}.mp4`;
-  }
-
-  function resolveSignAnimations(words) {
-    if (!Array.isArray(words) || words.length === 0 || !chrome.runtime || !chrome.runtime.id) {
-      return Promise.resolve([]);
-    }
-    return new Promise((resolve) => {
-      chrome.runtime.sendMessage({ action: 'resolve_sign_animations', words }, (response) => {
-        if (chrome.runtime.lastError) {
-          console.warn('[Signify] Không thể resolve animation:', chrome.runtime.lastError.message);
-          resolve([]);
-          return;
-        }
-        resolve(response && response.success && Array.isArray(response.data) ? response.data : []);
-      });
-    });
+    return `${BACKEND_URL}/assets/animations/${fileKey}.mp4`;
   }
 
   function processSubtitleLocally(subtitle) {
@@ -199,9 +200,6 @@
    */
   function appendToFullSignSequence(signDataList) {
     if (!signDataList || signDataList.length === 0) return;
-    if (!fullSignSequenceVideoId) {
-      fullSignSequenceVideoId = activeVideoId || getYouTubeVideoId() || "";
-    }
 
     const now = Date.now();
     // Gắn timestamp (ms từ epoch) vào mỗi ký hiệu để BE biết thứ tự thời gian
@@ -249,10 +247,6 @@
     const signLanguageText = fullSignSequence.map(i => i.word).join(', ');
 
     const payload = {
-      videoId: fullSignSequenceVideoId,
-      videoUrl: fullSignSequenceVideoId
-        ? `https://www.youtube.com/watch?v=${fullSignSequenceVideoId}`
-        : window.location.href,
       signLanguageText: signLanguageText
     };
 
@@ -288,10 +282,6 @@
   // Video "đứng yên" phát khi rảnh hoặc khi một từ không có clip riêng.
   const IDLE_VIDEO_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload/dung-im.mp4";
   const FREE_DAILY_LIMIT_MESSAGE = "Bạn đã dùng hết 20 phút miễn phí hôm nay. Đăng ký gói để tiếp tục xem phụ đề ký hiệu.";
-  const SCHOOL_DAILY_LIMIT_TITLE = "Đã dùng hết thời lượng được cấp phép hôm nay";
-  const SCHOOL_DAILY_LIMIT_MESSAGE = "Bạn đã dùng hết thời lượng xử lý AI được nhà trường cấp phép trong hôm nay. Vui lòng thử lại sau 00:00 hoặc liên hệ quản trị trường.";
-  const SCHOOL_VIDEO_NOT_ACTIVATED_TITLE = "Video chưa được nhà trường cấp phép";
-  const VIDEO_PROCESSING_TITLE = "Video đang được xử lý";
 
   let overlayContainer = null;
   let overlayVisible = true;
@@ -305,20 +295,14 @@
   let animationTimeout = null;
   let currentSignifyUser = null;
   let usageSessionId = null;
-  let usageSessionStarting = false;
   let usageHeartbeatTimer = null;
-  let usagePlaybackSamplerTimer = null;
-  let usagePendingPlayedSeconds = 0;
-  let usageHeartbeatSequence = 0;
-  let usageHeartbeatInFlight = false;
-  let usagePendingBatch = null;
-  let usageLastVideoPosition = null;
   let quotaBlocked = false;
-  let aiUsageProcessingId = null;
-  let aiUsageOwnsProcessing = false;
-  let aiUsageProcessingFinalized = false;
-  let aiUsageAuthorizedVideoId = null;
-  let aiUsageAuthorizationPromise = null;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // TRANSLATION ENABLE GATE
+  // Chỉ bắt đầu dịch khi user bấm nút. Mặc định TẮT.
+  // ═══════════════════════════════════════════════════════════════════
+  let translationEnabled = false;
 
   // ═══════════════════════════════════════════════════════════════════
   // FULL SIGN SEQUENCE ACCUMULATOR
@@ -327,7 +311,6 @@
   // Format: Array<{ word: string, animation: string, timestamp: number }>
   // ═══════════════════════════════════════════════════════════════════
   let fullSignSequence = [];
-  let fullSignSequenceVideoId = "";
 
   // Timeline Synchronization Engine State
   let activeVideoId = "";
@@ -341,63 +324,24 @@
     return urlParams.get('v');
   }
 
-  let signifyAuthScanInProgress = false;
-
-  function setSignifyLoginButtonsLoading(loading) {
-    ['signify-login-btn', 'signify-modal-login-btn'].forEach((id) => {
-      const button = document.getElementById(id);
-      if (!button) return;
-      button.disabled = loading;
-      button.textContent = loading ? 'Đang kiểm tra...' : 'Đăng nhập';
-    });
-  }
-
   function openSignifyLogin() {
-    if (signifyAuthScanInProgress) return;
-    const openLoginPage = () => window.open(`${FRONTEND_URL}/login`, '_blank', 'noopener,noreferrer');
-
-    if (!chrome.runtime || !chrome.runtime.id) {
-      openLoginPage();
-      return;
-    }
-
-    signifyAuthScanInProgress = true;
-    setSignifyLoginButtonsLoading(true);
-    chrome.runtime.sendMessage({ action: 'scan_signify_web_auth' }, (response) => {
-      signifyAuthScanInProgress = false;
-      setSignifyLoginButtonsLoading(false);
-
-      if (chrome.runtime.lastError) {
-        openLoginPage();
-        return;
-      }
-      if (!response?.authenticated) return;
-
-      quotaBlocked = false;
-      renderSignifyUserInfo();
-      const modal = document.getElementById('signify-limit-modal');
-      if (modal) modal.style.display = 'none';
-
-      if (!response.authChanged && overlayVisible && getYouTubeVideoId()) {
-        setTimeout(() => handlePageTransition(), 300);
-      }
-    });
+    window.open(`${FRONTEND_URL}/#/login`, '_blank', 'noopener,noreferrer');
   }
 
   function openSignifyProfile() {
-    window.open(`${FRONTEND_URL}/profile`, '_blank', 'noopener,noreferrer');
+    window.open(`${FRONTEND_URL}/#/profile`, '_blank', 'noopener,noreferrer');
   }
 
   function renderSignifyUserInfo() {
     if (!chrome.storage || !chrome.storage.local) return;
 
-    chrome.storage.local.get(['signifyAuthToken', 'signifyUser'], (data) => {
+    chrome.storage.local.get(['signifyUser'], (data) => {
       const userAvatarEl = document.getElementById('signify-user-avatar');
       const loginBtn = document.getElementById('signify-login-btn');
 
-      if (data.signifyAuthToken) {
+      if (data.signifyUser) {
         try {
-          const user = data.signifyUser ? JSON.parse(data.signifyUser) : {};
+          const user = JSON.parse(data.signifyUser);
           currentSignifyUser = user;
           const displayName = user.fullName || user.email || 'Signify User';
           const avatarUrl = user.avatarUrl || user.avatar || '';
@@ -499,7 +443,7 @@
     });
   }
 
-  function showSignifyLimitModal(message, authRequired = false, quotaCode = 'FREE_DAILY_LIMIT_REACHED') {
+  function showSignifyLimitModal(message, authRequired = false) {
     let modal = document.getElementById('signify-limit-modal');
     if (!modal) {
       modal = document.createElement('div');
@@ -508,30 +452,13 @@
       document.body.appendChild(modal);
     }
 
-    const schoolDailyQuota = quotaCode === 'SCHOOL_AI_DAILY_LIMIT_REACHED';
-    const schoolQuota = schoolDailyQuota || quotaCode === 'SCHOOL_AI_MONTHLY_LIMIT_REACHED';
-    const schoolVideoNotActivated = quotaCode === 'SCHOOL_VIDEO_NOT_ACTIVATED';
-    const videoProcessing = quotaCode === 'AI_VIDEO_PROCESSING_IN_PROGRESS';
-    const schoolNotice = schoolQuota || schoolVideoNotActivated || videoProcessing;
-    const displayMessage = schoolDailyQuota ? SCHOOL_DAILY_LIMIT_MESSAGE : message;
-    const displayTitle = authRequired
-      ? 'Cần đăng nhập Signify'
-      : schoolDailyQuota
-        ? SCHOOL_DAILY_LIMIT_TITLE
-        : schoolQuota
-          ? 'Trường đã hết AI Usage'
-          : schoolVideoNotActivated
-            ? SCHOOL_VIDEO_NOT_ACTIVATED_TITLE
-            : videoProcessing
-              ? VIDEO_PROCESSING_TITLE
-              : 'Đã hết 20 phút hôm nay';
     modal.innerHTML = `
       <div class="signify-limit-card">
         <div class="signify-limit-icon"><img class="signify-limit-logo" src="${LOGO_URL}" alt="Signify" /></div>
-        <div class="signify-limit-title">${displayTitle}</div>
-        <div class="signify-limit-message">${displayMessage}</div>
+        <div class="signify-limit-title">${authRequired ? 'Cần đăng nhập Signify' : 'Đã hết 20 phút hôm nay'}</div>
+        <div class="signify-limit-message">${message}</div>
         <div class="signify-limit-actions">
-          ${authRequired ? '<button class="signify-limit-primary" id="signify-modal-login-btn">Đăng nhập</button>' : schoolNotice ? '' : '<button class="signify-limit-primary" id="signify-modal-upgrade-btn">Đăng ký gói</button>'}
+          ${authRequired ? '<button class="signify-limit-primary" id="signify-modal-login-btn">Đăng nhập</button>' : '<button class="signify-limit-primary" id="signify-modal-upgrade-btn">Đăng ký gói</button>'}
           <button class="signify-limit-secondary" id="signify-modal-close-btn">Đóng</button>
         </div>
       </div>
@@ -542,26 +469,11 @@
     const upgradeBtn = document.getElementById('signify-modal-upgrade-btn');
     const closeBtn = document.getElementById('signify-modal-close-btn');
     if (loginBtn) loginBtn.addEventListener('click', openSignifyLogin);
-    if (upgradeBtn) upgradeBtn.addEventListener('click', () => window.open(`${FRONTEND_URL}/packages`, '_blank', 'noopener,noreferrer'));
+    if (upgradeBtn) upgradeBtn.addEventListener('click', () => window.open(`${FRONTEND_URL}/#/packages`, '_blank', 'noopener,noreferrer'));
     if (closeBtn) closeBtn.addEventListener('click', () => { modal.style.display = 'none'; });
   }
 
-  function showFreeDailyLimitState(message = FREE_DAILY_LIMIT_MESSAGE, quotaCode = 'FREE_DAILY_LIMIT_REACHED') {
-    const schoolDailyQuota = quotaCode === 'SCHOOL_AI_DAILY_LIMIT_REACHED';
-    const schoolQuota = schoolDailyQuota || quotaCode === 'SCHOOL_AI_MONTHLY_LIMIT_REACHED';
-    const schoolVideoNotActivated = quotaCode === 'SCHOOL_VIDEO_NOT_ACTIVATED';
-    const videoProcessing = quotaCode === 'AI_VIDEO_PROCESSING_IN_PROGRESS';
-    const schoolNotice = schoolQuota || schoolVideoNotActivated || videoProcessing;
-    const displayMessage = schoolDailyQuota ? SCHOOL_DAILY_LIMIT_MESSAGE : message;
-    const displayTitle = schoolDailyQuota
-      ? SCHOOL_DAILY_LIMIT_TITLE
-      : schoolQuota
-        ? 'Trường đã hết AI Usage'
-        : schoolVideoNotActivated
-          ? SCHOOL_VIDEO_NOT_ACTIVATED_TITLE
-          : videoProcessing
-            ? VIDEO_PROCESSING_TITLE
-            : 'Đã dùng hết 20 phút hôm nay';
+  function showFreeDailyLimitState(message = FREE_DAILY_LIMIT_MESSAGE) {
     quotaBlocked = true;
     animationQueue = [];
     clearTimeout(animationTimeout);
@@ -590,9 +502,9 @@
       fallbackCard.style.display = 'flex';
       fallbackCard.innerHTML = `
         <div class="signify-limit-inline-icon">⏱️</div>
-        <div class="signify-limit-inline-title">${displayTitle}</div>
-        <div class="signify-limit-inline-message">${schoolNotice ? displayMessage : 'Đăng ký gói để tiếp tục xem phụ đề ký hiệu.'}</div>
-        ${schoolNotice ? '' : '<button class="signify-limit-inline-button" id="signify-inline-upgrade-btn" type="button">Đăng ký gói</button>'}
+        <div class="signify-limit-inline-title">Đã dùng hết 20 phút hôm nay</div>
+        <div class="signify-limit-inline-message">Đăng ký gói để tiếp tục xem phụ đề ký hiệu.</div>
+        <button class="signify-limit-inline-button" id="signify-inline-upgrade-btn" type="button">Đăng ký gói</button>
       `;
 
       const inlineUpgradeBtn = document.getElementById('signify-inline-upgrade-btn');
@@ -602,56 +514,10 @@
     }
 
     const captionText = document.getElementById('signify-caption-text');
-    if (captionText) captionText.textContent = displayMessage;
+    if (captionText) captionText.textContent = message;
 
     setHideNativeCaptions(false);
-    showSignifyLimitModal(displayMessage, false, quotaCode);
-  }
-
-  function sampleUsagePlayback() {
-    const ytVideo = document.querySelector('video.html5-main-video');
-    if (!ytVideo) {
-      usageLastVideoPosition = null;
-      return;
-    }
-
-    const position = Number(ytVideo.currentTime || 0);
-    if (usageLastVideoPosition !== null && overlayVisible && !document.hidden && !ytVideo.paused && !ytVideo.ended) {
-      const delta = position - usageLastVideoPosition;
-      const maximumNaturalDelta = Math.max(5, Number(ytVideo.playbackRate || 1) * 2.5);
-      if (delta > 0 && delta <= maximumNaturalDelta) {
-        usagePendingPlayedSeconds += delta;
-      }
-    }
-    usageLastVideoPosition = position;
-  }
-
-  function currentUsageRequestData() {
-    sampleUsagePlayback();
-    if (!usagePendingBatch) {
-      const seconds = Math.min(90, Math.floor(usagePendingPlayedSeconds));
-      if (seconds <= 0) return null;
-      usagePendingBatch = { seconds, sequence: usageHeartbeatSequence };
-    }
-
-    const ytVideo = document.querySelector('video.html5-main-video');
-    return {
-      playedSecondsDelta: usagePendingBatch.seconds,
-      currentPositionSeconds: Math.max(0, Math.floor(Number(ytVideo?.currentTime || 0))),
-      sequence: usagePendingBatch.sequence
-    };
-  }
-
-  function clearUsageTrackingState() {
-    if (usagePlaybackSamplerTimer) {
-      clearInterval(usagePlaybackSamplerTimer);
-      usagePlaybackSamplerTimer = null;
-    }
-    usagePendingPlayedSeconds = 0;
-    usageHeartbeatSequence = 0;
-    usageHeartbeatInFlight = false;
-    usagePendingBatch = null;
-    usageLastVideoPosition = null;
+    showSignifyLimitModal(message);
   }
 
   function stopUsageSession() {
@@ -661,36 +527,20 @@
     }
 
     if (usageSessionId && chrome.runtime && chrome.runtime.id) {
-      const requestData = currentUsageRequestData();
       chrome.runtime.sendMessage({
         action: 'usage_session_end',
-        sessionId: usageSessionId,
-        requestData: requestData || {
-          playedSecondsDelta: 0,
-          currentPositionSeconds: Math.max(0, Math.floor(Number(document.querySelector('video.html5-main-video')?.currentTime || 0))),
-          sequence: usageHeartbeatSequence
-        }
+        sessionId: usageSessionId
       }, () => { });
     }
 
     usageSessionId = null;
-    usageSessionStarting = false;
-    clearUsageTrackingState();
   }
 
   function handleQuotaOrAuthResponse(response) {
     if (!response) return false;
     if (response.quotaExceeded) {
       stopUsageSession();
-      showFreeDailyLimitState(response.data?.message || FREE_DAILY_LIMIT_MESSAGE, response.data?.code);
-      return true;
-    }
-    if (response.schoolVideoBlocked) {
-      stopUsageSession();
-      showFreeDailyLimitState(
-        response.data?.message || 'Video hiện chưa thể sử dụng với Signify.',
-        response.data?.code
-      );
+      showFreeDailyLimitState(response.data?.message || FREE_DAILY_LIMIT_MESSAGE);
       return true;
     }
     if (response.authRequired) {
@@ -702,143 +552,36 @@
   }
 
   function sendUsageHeartbeat() {
-    if (!usageSessionId || quotaBlocked || usageHeartbeatInFlight || !chrome.runtime || !chrome.runtime.id) return;
+    if (!usageSessionId || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return;
 
     const ytVideo = document.querySelector('video.html5-main-video');
     if (!overlayVisible || !ytVideo || ytVideo.paused || ytVideo.ended) return;
 
-    const requestData = currentUsageRequestData();
-    if (!requestData) return;
-    const sentSeconds = usagePendingBatch.seconds;
-    usageHeartbeatInFlight = true;
-
     chrome.runtime.sendMessage({
       action: 'usage_session_heartbeat',
-      sessionId: usageSessionId,
-      requestData
+      sessionId: usageSessionId
     }, (response) => {
       if (response?.success) {
-        usagePendingPlayedSeconds = Math.max(0, usagePendingPlayedSeconds - sentSeconds);
-        usageHeartbeatSequence += 1;
-        usagePendingBatch = null;
         console.log('Signify usage heartbeat recorded:', response.data);
       }
-      usageHeartbeatInFlight = false;
       handleQuotaOrAuthResponse(response);
     });
   }
 
-  function getUsageVideoMetadata() {
-    const ytVideo = document.querySelector('video.html5-main-video');
-    const titleElement = document.querySelector('h1.ytd-watch-metadata yt-formatted-string, h1.title yt-formatted-string');
-    const channelElement = document.querySelector('#owner #channel-name a, ytd-channel-name a');
-    const rawTitle = titleElement?.textContent?.trim() || document.title.replace(/\s*-\s*YouTube\s*$/, '').trim();
-    return {
-      videoTitle: rawTitle || null,
-      videoUrl: window.location.href,
-      channelName: channelElement?.textContent?.trim() || null,
-      videoDurationSeconds: Number.isFinite(ytVideo?.duration) ? Math.max(0, Math.floor(ytVideo.duration)) : null
-    };
-  }
-
-  function getAiVideoDurationSeconds() {
-    const metadataDuration = getUsageVideoMetadata().videoDurationSeconds;
-    if (metadataDuration && metadataDuration > 0) return metadataDuration;
-    const transcriptEndMs = fullTranscript.reduce((maximum, segment) => {
-      const end = Number(segment?.end || 0);
-      return Number.isFinite(end) ? Math.max(maximum, end) : maximum;
-    }, 0);
-    return transcriptEndMs > 0 ? Math.ceil(transcriptEndMs / 1000) : null;
-  }
-
-  function resetAiUsageProcessing(reportFailure = false) {
-    if (reportFailure && aiUsageProcessingId && aiUsageOwnsProcessing && !aiUsageProcessingFinalized
-        && chrome.runtime && chrome.runtime.id) {
-      chrome.runtime.sendMessage({
-        action: 'ai_usage_processing_fail',
-        processingId: aiUsageProcessingId
-      }, () => { });
-    }
-    aiUsageProcessingId = null;
-    aiUsageOwnsProcessing = false;
-    aiUsageProcessingFinalized = false;
-    aiUsageAuthorizedVideoId = null;
-    aiUsageAuthorizationPromise = null;
-  }
-
-  function ensureAiUsageAuthorization() {
-    const videoId = getYouTubeVideoId();
-    if (!videoId || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return Promise.resolve(false);
-    if (aiUsageAuthorizedVideoId === videoId) return Promise.resolve(true);
-    if (aiUsageAuthorizationPromise) return aiUsageAuthorizationPromise;
-
-    const durationSeconds = getAiVideoDurationSeconds();
-    if (!durationSeconds) return Promise.resolve(false);
-    const metadata = getUsageVideoMetadata();
-    aiUsageAuthorizationPromise = new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        action: 'ai_usage_authorize',
-        requestData: {
-          videoId,
-          durationSeconds,
-          videoTitle: metadata.videoTitle,
-          videoUrl: metadata.videoUrl,
-          channelName: metadata.channelName
-        }
-      }, (response) => {
-        aiUsageAuthorizationPromise = null;
-        if (response?.success && response.data?.allowed) {
-          aiUsageProcessingId = response.data.processingId || null;
-          aiUsageOwnsProcessing = Boolean(response.data.ownsProcessing);
-          aiUsageProcessingFinalized = Boolean(response.data.cached);
-          aiUsageAuthorizedVideoId = videoId;
-          resolve(true);
-          return;
-        }
-        handleQuotaOrAuthResponse(response);
-        resolve(false);
-      });
-    });
-    return aiUsageAuthorizationPromise;
-  }
-
-  function finalizeAiUsageProcessing(success) {
-    if (!aiUsageProcessingId || !aiUsageOwnsProcessing || aiUsageProcessingFinalized
-        || !chrome.runtime || !chrome.runtime.id) return;
-    const processingId = aiUsageProcessingId;
-    aiUsageProcessingFinalized = true;
-    chrome.runtime.sendMessage({
-      action: success ? 'ai_usage_processing_complete' : 'ai_usage_processing_fail',
-      processingId
-    }, (response) => {
-      if (!response?.success) {
-        if (aiUsageProcessingId === processingId) aiUsageProcessingFinalized = false;
-        console.warn('Could not finalize AI usage processing:', response?.error);
-      }
-    });
-  }
-
   function startUsageSession() {
-    if (usageSessionId || usageSessionStarting || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return;
+    if (usageSessionId || quotaBlocked || !chrome.runtime || !chrome.runtime.id) return;
 
-    usageSessionStarting = true;
     chrome.runtime.sendMessage({
       action: 'usage_session_start',
       requestData: {
         source: 'EXTENSION',
-        videoId: getYouTubeVideoId() || '',
-        ...getUsageVideoMetadata()
+        videoId: getYouTubeVideoId() || ''
       }
     }, (response) => {
-      usageSessionStarting = false;
       if (!response) return;
 
       if (response.success && response.data?.sessionId) {
         usageSessionId = response.data.sessionId;
-        clearUsageTrackingState();
-        const ytVideo = document.querySelector('video.html5-main-video');
-        usageLastVideoPosition = ytVideo ? Number(ytVideo.currentTime || 0) : null;
-        usagePlaybackSamplerTimer = setInterval(sampleUsagePlayback, 1000);
         console.log('Signify usage session started:', usageSessionId);
         if (usageHeartbeatTimer) clearInterval(usageHeartbeatTimer);
         usageHeartbeatTimer = setInterval(sendUsageHeartbeat, 30000);
@@ -850,10 +593,7 @@
     });
   }
 
-  window.addEventListener('beforeunload', () => {
-    resetAiUsageProcessing(true);
-    stopUsageSession();
-  });
+  window.addEventListener('beforeunload', stopUsageSession);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) stopUsageSession();
     else if (overlayVisible && getYouTubeVideoId()) startUsageSession();
@@ -880,7 +620,7 @@
         <div class="signify-overlay-header">
           <div class="signify-brand-wrapper">
             <img class="signify-header-logo" src="${LOGO_URL}" alt="Signify" />
-            <span class="signify-logo-text">TRÌNH DỊCH SIGNIFY</span>
+            <span class="signify-logo-text">VSL - KÝ HIỆU VIỆT NAM</span>
           </div>
           <div class="signify-header-actions">
             <div class="signify-header-avatar" id="signify-user-avatar">?</div>
@@ -896,6 +636,13 @@
             <span id="signify-fallback-word" class="signify-fallback-word">Chờ dịch...</span>
           </div>
         </div>
+        <div class="signify-translate-bar">
+          <button id="signify-translate-toggle-btn" class="signify-translate-btn signify-translate-btn--off" type="button">
+            <span class="signify-translate-btn-icon">▶</span>
+            <span class="signify-translate-btn-label">Bắt đầu Dịch</span>
+          </button>
+          <div id="signify-caption-text" class="signify-caption-text" style="display:none;"></div>
+        </div>
       </div>
       <!-- 4 Corner Resize Handles -->
       <div class="signify-resize-handle top-left" data-corner="tl"></div>
@@ -909,6 +656,42 @@
     console.log("Appending overlay to:", ytPlayer);
     ytPlayer.appendChild(overlayContainer);
     console.log("Overlay created successfully");
+
+    // Bind Translate Toggle Button
+    const translateToggleBtn = document.getElementById('signify-translate-toggle-btn');
+    if (translateToggleBtn) {
+      translateToggleBtn.addEventListener('click', () => {
+        translationEnabled = !translationEnabled;
+        const btnIcon = translateToggleBtn.querySelector('.signify-translate-btn-icon');
+        const btnLabel = translateToggleBtn.querySelector('.signify-translate-btn-label');
+        const captionText = document.getElementById('signify-caption-text');
+
+        if (translationEnabled) {
+          translateToggleBtn.classList.remove('signify-translate-btn--off');
+          translateToggleBtn.classList.add('signify-translate-btn--on');
+          if (btnIcon) btnIcon.textContent = '⏹';
+          if (btnLabel) btnLabel.textContent = 'Dừng Dịch';
+          if (captionText) captionText.textContent = 'Đang khởi động dịch...';
+          console.log('🟢 [Signify] Người dùng bật dịch');
+          handlePageTransition();
+        } else {
+          translateToggleBtn.classList.remove('signify-translate-btn--on');
+          translateToggleBtn.classList.add('signify-translate-btn--off');
+          if (btnIcon) btnIcon.textContent = '▶';
+          if (btnLabel) btnLabel.textContent = 'Bắt đầu Dịch';
+          if (captionText) captionText.textContent = 'Nhấn để bắt đầu dịch';
+          console.log('🔴 [Signify] Người dùng tắt dịch');
+          // Dừng các pipeline đang chạy
+          isSyncActive = false;
+          lastActiveSegment = null;
+          if (observer) { observer.disconnect(); observer = null; }
+          clearTimeout(subtitleDebounceTimeout);
+          setHideNativeCaptions(false);
+          activeVideoId = ''; // Reset để lần bật tiếp theo sẽ load lại
+          playIdleVideo();
+        }
+      });
+    }
 
     // Restore saved panel dimensions, position, and theme if present
     if (chrome.storage && chrome.storage.local) {
@@ -1336,7 +1119,7 @@
   }
 
   // 4. Send Subtitle Segment to Local Backend for Translation (AI-Backend-First with Local Fallback)
-  async function fetchSegmentTranslation(segment) {
+  function fetchSegmentTranslation(segment) {
     const words = splitTextIntoWords(segment.text);
     if (!words || words.length === 0) {
       console.log("No meaningful words found for segment, skipping backend lookup.");
@@ -1361,41 +1144,27 @@
       return;
     }
 
-    if (!await ensureAiUsageAuthorization()) {
-      if (!quotaBlocked) fallbackToLocal(segment);
-      return;
-    }
-
     chrome.runtime.sendMessage({
       action: "fetch_dictionary_lookup",
-      requestData: { ...requestData, aiProcessingId: aiUsageProcessingId }
+      requestData: requestData
     }, (response) => {
       if (response && response.success && response.data && response.data.length > 0) {
-        segment.isFetching = false;
         segment.translatedSignData = response.data;
-        finalizeAiUsageProcessing(true);
         if (lastActiveSegment === segment) {
           renderSignCaptionText(segment.translatedSignData, segment.text);
           playSegmentSignData(segment.translatedSignData);
         }
       } else {
-        if (handleQuotaOrAuthResponse(response)) {
-          segment.isFetching = false;
-          return;
-        }
+        if (handleQuotaOrAuthResponse(response)) return;
         console.warn("Backend translation failed or returned empty. Falling back to local processing.");
         fallbackToLocal(segment);
       }
     });
   }
 
-  async function fallbackToLocal(segment) {
+  function fallbackToLocal(segment) {
     try {
-      const words = splitTextIntoWords(segment.text);
-      const resolvedSignData = await resolveSignAnimations(words);
-      const localSignData = resolvedSignData.length > 0
-        ? resolvedSignData
-        : processSubtitleLocally(segment.text);
+      const localSignData = processSubtitleLocally(segment.text);
       segment.translatedSignData = localSignData;
       if (lastActiveSegment === segment) {
         renderSignCaptionText(segment.translatedSignData, segment.text);
@@ -1403,8 +1172,6 @@
       }
     } catch (e) {
       console.error("Local processing fallback failed:", e);
-    } finally {
-      segment.isFetching = false;
     }
   }
 
@@ -1436,42 +1203,10 @@
       // Clear overlay captions if player advances beyond last matched caption
       if (lastActiveSegment && (currentTimeMs < lastActiveSegment.start || currentTimeMs > lastActiveSegment.end + 1200)) {
         lastActiveSegment = null;
-        animationQueue = [];
-        playIdleVideo();
         const captionText = document.getElementById('signify-caption-text');
         if (captionText) captionText.textContent = "Chờ phụ đề...";
       }
     }
-  }
-
-  function handleYouTubePause() {
-    const signPlayer = document.getElementById('signify-video-player');
-    if (signPlayer && !signPlayer.paused) signPlayer.pause();
-  }
-
-  function handleYouTubePlay() {
-    const signPlayer = document.getElementById('signify-video-player');
-    if (signPlayer && signPlayer.src) signPlayer.play().catch(() => { });
-  }
-
-  function handleYouTubeSeeking(e) {
-    animationQueue = [];
-    lastActiveSegment = null;
-    playIdleVideo();
-    if (fullTranscript.length > 0) handleTimelineUpdate(e);
-    if (e.target.paused) handleYouTubePause();
-  }
-
-  function bindYouTubePlaybackSync() {
-    const ytVideo = document.querySelector('video.html5-main-video');
-    if (!ytVideo) return;
-
-    ytVideo.removeEventListener('pause', handleYouTubePause);
-    ytVideo.removeEventListener('play', handleYouTubePlay);
-    ytVideo.removeEventListener('seeking', handleYouTubeSeeking);
-    ytVideo.addEventListener('pause', handleYouTubePause);
-    ytVideo.addEventListener('play', handleYouTubePlay);
-    ytVideo.addEventListener('seeking', handleYouTubeSeeking);
   }
 
   // Start checking the video timeline for synchronizing sign language
@@ -1481,7 +1216,6 @@
 
     ytVideo.removeEventListener('timeupdate', handleTimelineUpdate);
     ytVideo.addEventListener('timeupdate', handleTimelineUpdate);
-    bindYouTubePlaybackSync();
     isSyncActive = true;
     console.log("🚀 Premium YouTube Caption-Timeline Sync activated!");
   }  // 6. Request YouTube Player response from page context (Main World)
@@ -1796,7 +1530,7 @@
       });
     });
 
-    if (!segments || segments.length === 0 || videoId !== activeVideoId) {
+    if (!segments || segments.length === 0) {
       return false;
     }
 
@@ -1815,29 +1549,22 @@
     }));
 
     console.log(`✅ Loaded ${fullTranscript.length} transcript segments from backend (NO CC needed).`);
-    startTimelineSync();
     prefetchTranslations();
+    startTimelineSync();
     return true;
   }
 
   // Dùng chung: pre-fetch bản dịch ký hiệu cho toàn bộ fullTranscript.
-  async function prefetchTranslations() {
+  function prefetchTranslations() {
     if (!fullTranscript || fullTranscript.length === 0) return;
-
-    if (!await ensureAiUsageAuthorization()) return;
 
     const captionText = document.getElementById('signify-caption-text');
     if (captionText) captionText.textContent = "Đang đồng bộ phụ đề với AI...";
 
     let completedCount = 0;
-    let backendSuccessCount = 0;
-    let backendRequestCount = 0;
-    const transcriptSegments = fullTranscript;
-    const processingVideoId = activeVideoId;
-    const total = transcriptSegments.length;
+    const total = fullTranscript.length;
 
-    const markProgress = (backendSucceeded = false) => {
-      if (backendSucceeded) backendSuccessCount++;
+    const markProgress = () => {
       completedCount++;
       if (captionText) {
         captionText.textContent = `Đang dịch phụ đề (${completedCount}/${total})...`;
@@ -1847,7 +1574,7 @@
       }
     };
 
-    const translateSegment = async (seg) => {
+    fullTranscript.forEach((seg) => {
       const words = splitTextIntoWords(seg.text);
       if (!words || words.length === 0) {
         seg.translatedSignData = [];
@@ -1856,59 +1583,30 @@
       }
 
       const requestData = {
-        videoId: processingVideoId,
-        aiProcessingId: aiUsageProcessingId,
+        videoId: getYouTubeVideoId() || window.location.href,
         words: words,
         text: seg.text
       };
 
-      if (!chrome.runtime || !chrome.runtime.id) {
-        seg.translatedSignData = processSubtitleLocally(seg.text);
-        markProgress();
-        return;
-      }
-
-      backendRequestCount++;
-      seg.isFetching = true;
-      const response = await new Promise((resolve) => {
+      if (chrome.runtime && chrome.runtime.id) {
         chrome.runtime.sendMessage({
           action: "fetch_dictionary_lookup",
           requestData: requestData
-        }, resolve);
-      });
-      seg.isFetching = false;
-
-      if (response && response.success) {
-        seg.translatedSignData = Array.isArray(response.data) ? response.data : [];
-        const receivedWords = seg.translatedSignData.map(item => item.word).join(', ');
-        console.log(`🎯 Groq translated transcript segment. Input: "${seg.text}" -> Output words: [${receivedWords}]`);
+        }, (response) => {
+          if (response && response.success && response.data && response.data.length > 0) {
+            const receivedWords = response.data.map(item => item.word).join(', ');
+            console.log(`🎯 Backend AI translation successful (API mode). Input: "${seg.text}" -> Output words: [${receivedWords}]`);
+            seg.translatedSignData = response.data;
+          } else {
+            seg.translatedSignData = processSubtitleLocally(seg.text);
+          }
+          markProgress();
+        });
       } else {
         seg.translatedSignData = processSubtitleLocally(seg.text);
-        handleQuotaOrAuthResponse(response);
+        markProgress();
       }
-
-      if (lastActiveSegment === seg && seg.translatedSignData.length > 0) {
-        renderSignCaptionText(seg.translatedSignData, seg.text);
-        playSegmentSignData(seg.translatedSignData);
-      }
-      markProgress(Boolean(response?.success));
-    };
-
-    let nextSegmentIndex = 0;
-    const worker = async () => {
-      while (nextSegmentIndex < transcriptSegments.length
-          && activeVideoId === processingVideoId && !quotaBlocked) {
-        const segmentIndex = nextSegmentIndex++;
-        await translateSegment(transcriptSegments[segmentIndex]);
-      }
-    };
-
-    const workerCount = Math.min(2, total);
-    await Promise.all(Array.from({ length: workerCount }, worker));
-
-    if (activeVideoId === processingVideoId && aiUsageOwnsProcessing) {
-      finalizeAiUsageProcessing(!quotaBlocked && backendRequestCount > 0 && backendSuccessCount > 0);
-    }
+    });
   }
 
   // Bật/tắt ẩn phụ đề gốc của YouTube (dùng class trên <html>, xem content.css).
@@ -1972,7 +1670,7 @@
   }
 
   // 8. Legacy MutationObserver Fallback loop (AI-Backend-First Approach)
-  async function sendSubtitleToBackend(text) {
+  function sendSubtitleToBackend(text) {
     renderSignCaptionText(null, text);
 
     console.log("Processing subtitle with AI:", text);
@@ -1989,6 +1687,12 @@
       return;
     }
 
+    const requestData = {
+      videoId: getYouTubeVideoId() || window.location.href,
+      words: words,
+      text: filteredText
+    };
+
     if (!chrome.runtime || !chrome.runtime.id) {
       // Fallback local
       const localSignData = processSubtitleLocally(text);
@@ -1999,34 +1703,16 @@
       return;
     }
 
-    if (!await ensureAiUsageAuthorization()) {
-      if (!quotaBlocked) {
-        const localSignData = processSubtitleLocally(text);
-        if (localSignData.length > 0) playSegmentSignData(localSignData);
-      }
-      return;
-    }
-
-    const requestData = {
-      videoId: getYouTubeVideoId() || window.location.href,
-      aiProcessingId: aiUsageProcessingId,
-      words: words,
-      text: filteredText
-    };
-
     chrome.runtime.sendMessage({
       action: "fetch_dictionary_lookup",
       requestData: requestData
     }, (response) => {
-      if (response && response.success) {
-        finalizeAiUsageProcessing(true);
-        if (Array.isArray(response.data) && response.data.length > 0) {
-          const receivedWords = response.data.map(item => item.word).join(', ');
-          console.log(`🎯 Groq translated subtitle (observer mode). Input: "${text}" -> Output words: [${receivedWords}]`);
-          renderSignCaptionText(response.data, text);
-          playSegmentSignData(response.data);
-          appendToFullSignSequence(response.data);  // ← Tích lũy vào mảng tổng hợp
-        }
+      if (response && response.success && response.data && response.data.length > 0) {
+        const receivedWords = response.data.map(item => item.word).join(', ');
+        console.log(`🎯 Backend AI translation successful (observer mode). Input: "${text}" -> Output words: [${receivedWords}]`);
+        renderSignCaptionText(response.data, text);
+        playSegmentSignData(response.data);
+        appendToFullSignSequence(response.data);  // ← Tích lũy vào mảng tổng hợp
       } else {
         if (handleQuotaOrAuthResponse(response)) return;
         console.warn("Backend AI translation failed or empty, falling back to local.");
@@ -2082,22 +1768,21 @@
         return; // No caption window found, skip
       }
 
-      // Dùng dòng hiển thị cuối cùng để không gửi lặp dòng cũ khi phụ đề cuộn.
-      const visualLines = captionWindow.querySelectorAll('.caption-visual-line');
-      let fullText = visualLines.length > 0
-        ? visualLines[visualLines.length - 1].textContent.trim()
-        : '';
-      if (!fullText) {
-        let segments = captionWindow.querySelectorAll('.ytp-caption-segment');
-        if (segments.length === 0) segments = captionWindow.querySelectorAll('span');
-        fullText = Array.from(segments)
-          .map(el => el.textContent.trim())
-          .filter(Boolean)
-          .join(' ')
-          .trim();
+      // Select only leaf segment elements to avoid duplicates from parent containers and helper elements
+      let segments = captionWindow.querySelectorAll('.ytp-caption-segment');
+      if (segments.length === 0) {
+        segments = captionWindow.querySelectorAll('.caption-visual-line');
+      }
+      if (segments.length === 0) {
+        segments = captionWindow.querySelectorAll('span');
       }
 
-      if (fullText) {
+      if (segments && segments.length > 0) {
+        const fullText = Array.from(segments)
+          .map(el => el.textContent.trim())
+          .filter(text => text.length > 0)
+          .join(" ")
+          .trim();
 
         // Làm sạch text ASR: bỏ ký hiệu đổi người nói ">>", nhiễu UI, timestamp...
         let filteredText = fullText
@@ -2124,10 +1809,12 @@
           if (!text || text === lastSentSubtitle) return;
 
           let delta = text;
-          // Chỉ cắt đuôi khi phần mở rộng bắt đầu tại ranh giới từ. Điều này tránh
-          // biến "trố" -> "trống" thành mảnh "ng" gửi lên Groq.
-          if (lastSentSubtitle && text.startsWith(`${lastSentSubtitle} `)) {
+          // Câu mới là phần mở rộng của câu đã gửi -> chỉ lấy đuôi mới.
+          if (lastSentSubtitle && text.startsWith(lastSentSubtitle)) {
             delta = text.slice(lastSentSubtitle.length).trim();
+          } else if (lastSentSubtitle) {
+            // ASR cuộn: tìm phần chung ở cuối câu cũ trùng đầu câu mới, cắt bỏ.
+            delta = stripOverlapPrefix(lastSentSubtitle, text);
           }
           lastSentSubtitle = text;
           lastSubtitleText = text;
@@ -2145,8 +1832,6 @@
       characterData: true
     });
 
-    bindYouTubePlaybackSync();
-    isSyncActive = true;
     console.log("DOM Observer started with enhanced caption selectors");
   }
 
@@ -2176,10 +1861,12 @@
 
   // 9. Page Lifecycle and Navigation Monitor
   async function handlePageTransition() {
+    // Chỉ chạy khi user đã bật nút dịch
+    if (!translationEnabled) return;
+
     const currentVideoId = getYouTubeVideoId();
     if (!currentVideoId) {
       // Not on a watch page
-      resetAiUsageProcessing(true);
       activeVideoId = "";
       fullTranscript = [];
       lastActiveSegment = null;
@@ -2198,7 +1885,6 @@
       console.log(`==================================================`);
 
       stopUsageSession();
-      resetAiUsageProcessing(true);
       activeVideoId = currentVideoId;
       startUsageSession();
       fullTranscript = [];
@@ -2214,19 +1900,71 @@
         sendFullSignSequenceToBackend();
       }
       fullSignSequence = [];  // Reset mảng ký hiệu sau khi đã gửi BE
-      fullSignSequenceVideoId = "";
 
       const captionText = document.getElementById('signify-caption-text');
-      if (captionText) captionText.textContent = "Đang tải phụ đề để xử lý bằng AI...";
+      if (captionText) captionText.textContent = "Đang kiểm tra ký hiệu có sẵn từ máy chủ...";
 
-      // Bước này chỉ lưu metadata. Groq chỉ được gọi sau khi có transcript/phụ đề.
-      sendVideoInfoToBackend(currentVideoId, videoUrl);
+      console.log(`🔍 [Signify Extension] Gửi GET request đến BE kiểm tra trường signLanguage cho videoId: "${currentVideoId}"`);
 
-      const transcriptLoaded = await loadTranscriptFromBackend(currentVideoId);
-      if (currentVideoId !== activeVideoId) return;
-      if (!transcriptLoaded) {
-        await activateObserverFallback("dùng observer trực tiếp");
-      }
+      // Gửi GET request tới BE để kiểm tra AI youtube đã có trường signLanguage chưa
+      chrome.runtime.sendMessage({
+        action: "get_video_info",
+        videoId: currentVideoId
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn("⚠️ [Signify Extension] get_video_info message error:", chrome.runtime.lastError.message);
+        }
+
+        const signLanguageStr = (response && response.success && response.data) ? response.data.signLanguage : null;
+
+        if (signLanguageStr && signLanguageStr.trim().length > 0) {
+          // Tách các từ ký hiệu ngăn cách bằng dấu phẩy
+          const words = signLanguageStr.split(',').map(w => w.trim()).filter(w => w.length > 0);
+
+          console.group(`🎯 [Signify Extension] BE ĐÃ CÓ sẵn trường signLanguage cho video: ${currentVideoId}`);
+          console.log(`📌 Chuỗi signLanguage từ BE: "${signLanguageStr}"`);
+          console.log(`📌 Tổng số từ ký hiệu: ${words.length}`);
+          console.log(`📌 Danh sách từ:`, words);
+          console.log(`🚀 Bỏ qua gọi AI response, sử dụng dữ liệu sẵn có từ BE để phát ký hiệu.`);
+          console.groupEnd();
+
+          if (captionText) captionText.textContent = "Đã nạp ký hiệu ngôn ngữ có sẵn từ máy chủ!";
+
+          const cachedSignDataList = [];
+          for (const word of words) {
+            const animationUrl = mapWordToAnimation(word) || `${BACKEND_URL}/assets/animations/${stripVietnameseAccents(word.toLowerCase()).replace(/\s+/g, "-")}.mp4`;
+            cachedSignDataList.push({
+              word: word,
+              animation: animationUrl
+            });
+          }
+
+          if (cachedSignDataList.length > 0) {
+            console.log(`🎬 [Signify Extension] Tiến hành phát ${cachedSignDataList.length} ký hiệu đã lấy từ BE...`);
+            playSegmentSignData(cachedSignDataList);
+
+            // Đã lấy được signLanguage từ BE => không cần bật observer AI dịch nữa
+            if (observer) {
+              observer.disconnect();
+              observer = null;
+            }
+            return;
+          }
+        }
+
+        // Nếu CHƯA CÓ trường signLanguage trên BE (Lần đầu tiên xem video này):
+        console.group(`ℹ️ [Signify Extension] BE CHƯA CÓ trường signLanguage cho video: ${currentVideoId}`);
+        console.log(`📌 Lần đầu tiên xem video này -> Tiến hành bật cào phụ đề & gọi AI Response.`);
+        console.log(`📌 Sau khi xem xong, chuỗi ký hiệu dịch được sẽ được gửi lên BE để tạo trường signLanguage.`);
+        console.groupEnd();
+
+        // Gửi thông tin Video (ID & URL) về Backend để tạo record
+        sendVideoInfoToBackend(currentVideoId, videoUrl);
+
+        setTimeout(() => {
+          activateObserverFallback("dùng observer trực tiếp");
+        }, 300);
+      });
     } else if (!isSyncActive) {
       // In case we are on the same video but the video element re-rendered
       startTimelineSync();
@@ -2242,8 +1980,6 @@
       }
       // Ẩn overlay -> hiện lại CC gốc; hiện overlay lại -> ẩn CC (nếu đang chạy chế độ observer)
       setHideNativeCaptions(overlayVisible && !!observer);
-      if (overlayVisible && getYouTubeVideoId()) startUsageSession();
-      else stopUsageSession();
       sendResponse({ status: overlayVisible ? 'Visible' : 'Hidden' });
     }
 

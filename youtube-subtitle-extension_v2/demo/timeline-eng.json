@@ -1,0 +1,75 @@
+[
+  {
+    "start": 0.0,
+    "end": 2.2,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau1_Gen_Xem_lai.mp4"
+    ]
+  },
+  {
+    "start": 2.2,
+    "end": 4.2,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau2_Gen.mp4"
+    ]
+  },
+  {
+    "start": 4.2,
+    "end": 7.2,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau3_Gen.mp4"
+    ]
+  },
+  {
+    "start": 7.2,
+    "end": 9.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau4_Gen.mp4"
+    ]
+  },
+  {
+    "start": 9.0,
+    "end": 11.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau5_Gen.mp4"
+    ]
+  },
+  {
+    "start": 11.0,
+    "end": 13.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau6_Gen.mp4"
+    ]
+  },
+  {
+    "start": 13.0,
+    "end": 16.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau7_Gen.mp4",
+      "demo/signs-eng/Cau8_Gen.mp4"
+    ]
+  },
+  {
+    "start": 16.0,
+    "end": 18.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau9_Gen.mp4"
+    ]
+  },
+  {
+    "start": 18.0,
+    "end": 22.0,
+    "lead": 0.2,
+    "clips": [
+      "demo/signs-eng/Cau10_Gen.mp4"
+    ]
+  }
+]

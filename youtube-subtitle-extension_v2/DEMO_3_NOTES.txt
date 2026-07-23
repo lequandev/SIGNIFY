@@ -1,0 +1,15 @@
+Demo 3 — VSL final timeline (v1.1.0)
+
+Timeline refinements:
+- Removed buon.mov where the actor's sigh/facial expression already conveys sadness.
+- danh-hieu.mov is used exactly once, in the first explanation of the chess result.
+- Shortened the repeated question to xin-chao -> ly-do.
+- Restored cac-ban -> tin-tuong -> toi for the expectation statement.
+- Uses bo-me -> thay-co -> cac-ban without the inaccurate/redundant buon sign.
+- Keeps the new trimmed sign assets at normal 1.0x playback speed.
+
+Engine safeguards retained:
+- No Demo 3 translation during YouTube advertisements.
+- No automatic replay after the YouTube video ends.
+- Demo 3 queue does not cut an active sign during normal playback.
+- Demo 1, Demo 2, and realtime translation pipelines are unchanged.

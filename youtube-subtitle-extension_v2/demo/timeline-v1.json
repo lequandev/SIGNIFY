@@ -1,0 +1,170 @@
+[
+  {
+    "start": 0.0,
+    "end": 21.0,
+    "lead": 0.9,
+    "clips": [
+      "demo/signs-v1/dung_im_img.jpg"
+    ]
+  },
+  {
+    "start": 21.0,
+    "end": 24.0,
+    "lead": 0.9,
+    "clips": [
+      "demo/signs-v1/nha.mp4",
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/con_cho.mp4"
+    ]
+  },
+  {
+    "start": 24.0,
+    "end": 26.5,
+    "lead": 0.6,
+    "clips": [
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/gay.mp4"
+    ]
+  },
+  {
+    "start": 26.5,
+    "end": 30.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/rinh_mo.mp4",
+      "demo/signs-v1/con_chuot.mp4"
+    ]
+  },
+  {
+    "start": 30.0,
+    "end": 34.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_cho.mp4",
+      "demo/signs-v1/trong_coi.mp4",
+      "demo/signs-v1/nha.mp4"
+    ]
+  },
+  {
+    "start": 34.0,
+    "end": 38.0,
+    "lead": 0.9,
+    "clips": [
+      "demo/signs-v1/nha.mp4",
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/con_cho.mp4"
+    ]
+  },
+  {
+    "start": 38.0,
+    "end": 40.5,
+    "lead": 0.6,
+    "clips": [
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/gay.mp4"
+    ]
+  },
+  {
+    "start": 40.5,
+    "end": 44.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/rinh_mo.mp4",
+      "demo/signs-v1/con_chuot.mp4"
+    ]
+  },
+  {
+    "start": 44.0,
+    "end": 48.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_cho.mp4",
+      "demo/signs-v1/trong_coi.mp4",
+      "demo/signs-v1/nha.mp4"
+    ]
+  },
+  {
+    "start": 75.0,
+    "end": 78.0,
+    "lead": 0.9,
+    "clips": [
+      "demo/signs-v1/nha.mp4",
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/con_cho.mp4"
+    ]
+  },
+  {
+    "start": 78.0,
+    "end": 80.5,
+    "lead": 0.6,
+    "clips": [
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/gay.mp4"
+    ]
+  },
+  {
+    "start": 80.5,
+    "end": 84.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/rinh_mo.mp4",
+      "demo/signs-v1/con_chuot.mp4"
+    ]
+  },
+  {
+    "start": 84.0,
+    "end": 88.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_cho.mp4",
+      "demo/signs-v1/trong_coi.mp4",
+      "demo/signs-v1/nha.mp4"
+    ]
+  },
+  {
+    "start": 88.0,
+    "end": 92.0,
+    "lead": 0.9,
+    "clips": [
+      "demo/signs-v1/nha.mp4",
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/con_cho.mp4"
+    ]
+  },
+  {
+    "start": 92.0,
+    "end": 94.5,
+    "lead": 0.6,
+    "clips": [
+      "demo/signs-v1/con_ga.mp4",
+      "demo/signs-v1/gay.mp4"
+    ]
+  },
+  {
+    "start": 94.5,
+    "end": 98.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_meo.mp4",
+      "demo/signs-v1/rinh_mo.mp4",
+      "demo/signs-v1/con_chuot.mp4"
+    ]
+  },
+  {
+    "start": 98.0,
+    "end": 102.0,
+    "lead": 1.0,
+    "clips": [
+      "demo/signs-v1/con_cho.mp4",
+      "demo/signs-v1/trong_coi.mp4",
+      "demo/signs-v1/nha.mp4"
+    ]
+  }
+]

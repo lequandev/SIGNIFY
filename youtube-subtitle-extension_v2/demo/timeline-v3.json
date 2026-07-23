@@ -1,0 +1,94 @@
+[
+  {
+    "start": 5.0,
+    "lead": 0.3,
+    "text": "Đường ơi, hết giờ học rồi, đi về đi",
+    "clips": [
+      "demo/signs-v3/xin-chao.mov",
+      "demo/signs-v3/di-hoc.mov",
+      "demo/signs-v3/ve-nha.mov"
+    ]
+  },
+  {
+    "start": 14.0,
+    "lead": 0.3,
+    "text": "Chắc Đường đang buồn vì hôm nay cậu ấy không đạt giải môn cờ vua",
+    "clips": [
+      "demo/signs-v3/ly-do.mp4",
+      "demo/signs-v3/khong.mp4",
+      "demo/signs-v3/danh-hieu.mov",
+      "demo/signs-v3/co-vua.mov"
+    ]
+  },
+  {
+    "start": 20.0,
+    "lead": 0.2,
+    "text": "Mình ra động viên bạn ấy đi",
+    "clips": [
+      "demo/signs-v3/dong-vien.mov"
+    ]
+  },
+  {
+    "start": 25.0,
+    "lead": 0.2,
+    "text": "Đường ơi, cậu buồn vì hôm nay không đạt giải à?",
+    "clips": [
+      "demo/signs-v3/xin-chao.mov",
+      "demo/signs-v3/ly-do.mp4"
+    ]
+  },
+  {
+    "start": 29.0,
+    "lead": 0.2,
+    "text": "Mọi người ai cũng kỳ vọng vào tớ. Tớ đã làm bố mẹ, thầy cô và các bạn thất vọng rồi",
+    "clips": [
+      "demo/signs-v3/cac-ban.mp4",
+      "demo/signs-v3/tin-tuong.mp4",
+      "demo/signs-v3/toi.mp4",
+      "demo/signs-v3/bo-me.mov",
+      "demo/signs-v3/thay-co.mov",
+      "demo/signs-v3/cac-ban.mp4"
+    ]
+  },
+  {
+    "start": 42.0,
+    "lead": 0.2,
+    "text": "Cậu đã rất cố gắng rồi. Đừng tự trách mình nữa",
+    "clips": [
+      "demo/signs-v3/co-gang.mp4",
+      "demo/signs-v3/nhieu.mov",
+      "demo/signs-v3/khong.mp4",
+      "demo/signs-v3/trach-mang.mov",
+      "demo/signs-v3/ban-than-myself.mov"
+    ]
+  },
+  {
+    "start": 54.0,
+    "lead": 0.2,
+    "text": "Đi về cùng chúng tôi đi",
+    "clips": [
+      "demo/signs-v3/chung-toi.mov",
+      "demo/signs-v3/cung-together.mp4",
+      "demo/signs-v3/ve-nha.mov"
+    ]
+  },
+  {
+    "start": 61.0,
+    "lead": 0.2,
+    "text": "Cảm ơn các bạn",
+    "clips": [
+      "demo/signs-v3/cam-on.mp4",
+      "demo/signs-v3/cac-ban.mp4"
+    ]
+  },
+  {
+    "start": 67.0,
+    "lead": 0.2,
+    "text": "Các bạn đừng quên bấm thích, chia sẻ và đăng ký kênh",
+    "clips": [
+      "demo/signs-v3/cac-ban.mp4",
+      "demo/signs-v3/tin-tuong.mp4",
+      "demo/signs-v3/chung-toi.mov"
+    ]
+  }
+]

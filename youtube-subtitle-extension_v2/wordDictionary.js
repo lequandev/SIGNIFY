@@ -1,8 +1,6 @@
 // Signify Local Word Dictionary - Frontend Word Splitting
 // Dictionary of common Vietnamese words and phrases for sign language mapping
 
-const CLOUDINARY_VIDEO_BASE_URL = "https://res.cloudinary.com/rlj4wvvu/video/upload";
-
 const VIETNAMESE_STOPWORDS = new Set([
   // Common conversational fillers, particles and slang
   "nè", "nha", "nhé", "nhỉ", "à", "ơi", "ớ", "ừ", "dạ", "vâng", "bạn", "các", "kiểu", "cơ", "đấy", "thế",
@@ -105,7 +103,7 @@ function mapWordToAnimation(word) {
   if (!cleanWord || VIETNAMESE_STOPWORDS.has(cleanWord)) return null;
   
   const cleanWordNoAccents = stripVietnameseAccents(cleanWord).replace(/\s+/g, "-");
-  return `${CLOUDINARY_VIDEO_BASE_URL}/${cleanWordNoAccents}.mp4`;
+  return `https://signify-g3zb.onrender.com/assets/animations/${cleanWordNoAccents}.mp4`;
 }
 
 // Main function to process subtitle locally

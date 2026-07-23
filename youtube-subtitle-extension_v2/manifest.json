@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Signify - YouTube Sign Language Overlay",
-  "version": "1.0.0",
-  "description": "Translates YouTube subtitles into Sign Language animations using Gemini AI and custom vocabulary mapping.",
+  "name": "VSL - Vietnam Sign Language",
+  "version": "1.1.0",
+  "description": "Dịch phụ đề YouTube sang Ngôn ngữ Ký hiệu Việt Nam (VSL) bằng AI Gemini và bộ từ điển tùy chỉnh.",
   "permissions": [
     "activeTab",
     "tabs",
@@ -12,10 +12,6 @@
   "host_permissions": [
     "https://signify-g3zb.onrender.com/*",
     "https://signify-i3rd.onrender.com/*",
-    "http://localhost:5173/*",
-    "http://127.0.0.1:5173/*",
-    "http://localhost:8080/*",
-    "http://127.0.0.1:8080/*",
     "*://*.youtube.com/*",
     "*://*.googlevideo.com/*",
     "*://*.googleapis.com/*",
@@ -36,8 +32,21 @@
   },
   "web_accessible_resources": [
     {
-      "resources": ["inject.js", "wordDictionary.js", "vietnameseCompoundWords.json", "icons/logo.png"],
-      "matches": ["*://*.youtube.com/*"]
+      "resources": [
+        "inject.js",
+        "wordDictionary.js",
+        "vietnameseCompoundWords.json",
+        "icons/logo.png",
+        "demo/timeline-v1.json",
+        "demo/timeline-eng.json",
+        "demo/signs-v1/*",
+        "demo/signs-eng/*",
+        "demo/timeline-v3.json",
+        "demo/signs-v3/*"
+      ],
+      "matches": [
+        "*://*.youtube.com/*"
+      ]
     }
   ],
   "background": {
@@ -45,7 +54,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://signify-i3rd.onrender.com/*", "http://localhost:5173/*", "http://127.0.0.1:5173/*"],
+      "matches": ["https://signify-i3rd.onrender.com/*"],
       "js": ["auth-sync.js"],
       "run_at": "document_idle"
     },
