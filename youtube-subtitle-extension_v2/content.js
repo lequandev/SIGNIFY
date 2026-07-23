@@ -1287,119 +1287,14 @@
     }
   }
 
-  // 2. Queue Manager to Play Animations Sequentially
-  function playNextAnimation() {
-    if (quotaBlocked) return;
-    clearTimeout(animationTimeout);
+  // ═══════════════════════════════════════════════════════════════════
+  // 2. STRICT SEQUENTIAL ANIMATION RUNNER (STT 1 -> N GUARANTEED)
+  // ═══════════════════════════════════════════════════════════════════
 
-    const videoPlayer = document.getElementById('signify-video-player');
+  let isRunnerProcessing = false; // Mutex lock tránh chạy đè loop
+  const INTER_WORD_DELAY_MS = 800; // Khoảng nghỉ 0.8s giữa từ trước và từ sau
 
-    if (animationQueue.length === 0) {
-      // Hết hàng đợi -> quay về video đứng yên (không hiện chữ).
-      playIdleVideo();
-      return;
-    }
-
-    isPlaying = true;
-    const currentSign = animationQueue.shift();
-
-    // Cập nhật chữ hiển thị khớp với video đang phát
-    const captionText = document.getElementById('signify-caption-text');
-    if (captionText) {
-      if (currentSign.animation && currentSign.animation.includes('dung-im')) {
-        captionText.textContent = ""; // Ẩn chữ nếu là video đứng im
-      } else {
-        captionText.textContent = currentSign.word;
-      }
-    }
-
-    // Chỉ dùng animation URL nếu là URL hợp lệ (chrome-extension, data, https).
-    // Loại bỏ relative paths / unknown schemes để tránh ERR_FILE_NOT_FOUND.
-    const hasVideo = currentSign.animation && (
-      currentSign.animation.startsWith('chrome-extension:') ||
-      currentSign.animation.startsWith('data:') ||
-      currentSign.animation.startsWith('https://')
-    );
-    const srcUrl = hasVideo ? currentSign.animation : IDLE_VIDEO_URL;
-
-    function executeVideoPlay(finalSrc) {
-      const activePlayer = getActiveVideoPlayer();
-      const standbyPlayer = getStandbyVideoPlayer();
-
-      if (!activePlayer) return;
-
-      if (!standbyPlayer) {
-        activePlayer.style.display = 'block';
-        activePlayer.loop = false;
-        activePlayer.removeAttribute('data-idle');
-        activePlayer.src = finalSrc;
-        activePlayer.load();
-        activePlayer.play().catch(err => {
-          if (err && err.name !== 'AbortError') {
-            console.warn('[Signify] Không thể phát clip:', err.message || err);
-          }
-          animationTimeout = setTimeout(playNextAnimation, 50);
-        });
-        return;
-      }
-
-      // Smooth Dual-buffered swap
-      standbyPlayer.style.display = 'block';
-      standbyPlayer.removeAttribute('data-idle');
-      standbyPlayer.loop = false;
-      standbyPlayer.src = finalSrc;
-      standbyPlayer.load();
-
-      const doSwap = () => {
-        standbyPlayer.style.opacity = '1';
-        standbyPlayer.classList.add('signify-video-active');
-        standbyPlayer.classList.remove('signify-video-standby');
-
-        activePlayer.style.opacity = '0';
-        activePlayer.classList.remove('signify-video-active');
-        activePlayer.classList.add('signify-video-standby');
-
-        setTimeout(() => {
-          try { activePlayer.pause(); activePlayer.style.display = 'none'; } catch (e) {}
-        }, 150);
-
-        activePlayerIndex = 1 - activePlayerIndex;
-      };
-
-      standbyPlayer.play().then(() => {
-        doSwap();
-      }).catch(err => {
-        if (err && err.name !== 'AbortError') {
-          console.warn('[Signify] Dual-buffer play error, falling back:', err.message || err);
-        }
-        activePlayer.src = finalSrc;
-        activePlayer.load();
-        activePlayer.play().catch(() => {});
-      });
-    }
-
-    // chrome-extension:// URLs (local bundle) → load trực tiếp, không cần validate
-    if (srcUrl.startsWith('chrome-extension:') || srcUrl.startsWith('data:')) {
-      executeVideoPlay(srcUrl);
-      return;
-    }
-
-    // HTTPS (Cloudinary / backend): validate bằng HEAD trước (cache) để tránh ERR_FILE_NOT_FOUND
-    resolveVideoUrl(srcUrl).then(validatedSrc => {
-      if (validatedSrc === IDLE_VIDEO_URL && srcUrl !== IDLE_VIDEO_URL) {
-        // URL không tồn tại → bỏ qua từ này, sang từ tiếp theo
-        const captionText = document.getElementById('signify-caption-text');
-        if (captionText && captionText.textContent === currentSign.word) {
-          captionText.textContent = '';
-        }
-        animationTimeout = setTimeout(playNextAnimation, 50);
-      } else {
-        executeVideoPlay(validatedSrc);
-      }
-    });
-  }
-
-  // 3. Play Segment-Specific Sign Language Sequences (Non-destructive Queueing)
+  // 3. Play Segment-Specific Sign Language Sequences (Sequential Queueing)
   function playSegmentSignData(signDataList, options = {}) {
     if (quotaBlocked || !signDataList || signDataList.length === 0) return;
 
@@ -1409,8 +1304,7 @@
     if (options.replaceQueue) {
       animationQueue = [...validSigns];
     } else {
-      // Thêm các từ mới vào hàng đợi (queue) thay vì xóa hàng đợi cũ
-      // Tránh lặp lại từ giống hệt nằm ở cuối hàng đợi
+      // Đưa các từ mới vào hàng đợi theo đúng thứ tự STT (tuần tự từ 1 -> N)
       for (const sign of validSigns) {
         const lastInQueue = animationQueue[animationQueue.length - 1];
         if (!lastInQueue || lastInQueue.word !== sign.word || lastInQueue.animation !== sign.animation) {
@@ -1418,18 +1312,191 @@
         }
       }
 
-      // Giới hạn hàng đợi tối đa 15 ký hiệu để tránh lag xa khỏi dòng thời gian
-      if (animationQueue.length > 15) {
-        animationQueue = animationQueue.slice(animationQueue.length - 15);
+      // Khống chế hàng đợi tối đa 20 từ để tránh trễ dòng thời gian
+      if (animationQueue.length > 20) {
+        animationQueue = animationQueue.slice(animationQueue.length - 20);
       }
     }
 
-    // CHỈ gọi playNextAnimation nếu HIỆN TẠI KHÔNG CÓ video nào đang chạy (!isPlaying).
-    // Nếu có video đang chạy, TUYỆT ĐỐI KHÔNG ngắt hay pause video giữa chừng.
-    // Video đang chạy sẽ phát hết bth và sự kiện 'ended' sẽ tự động kích hoạt clip tiếp theo trong queue!
-    if (!isPlaying) {
-      playNextAnimation();
+    // Khởi chạy vòng lặp xử lý tuần tự nếu chưa chạy
+    processAnimationQueueSequentially();
+  }
+
+  /**
+   * Vòng lặp xử lý mảng từ TUẦN TỰ từ STT 1 đến hết (Async/Await Loop)
+   * Từ trước phát xong 100% + nghỉ 800ms -> Từ sau mới bắt đầu chạy!
+   */
+  async function processAnimationQueueSequentially() {
+    if (isRunnerProcessing || quotaBlocked) return;
+    isRunnerProcessing = true;
+    isPlaying = true;
+
+    try {
+      while (animationQueue.length > 0) {
+        if (!translationEnabled || quotaBlocked) break;
+
+        const currentSign = animationQueue.shift();
+        if (!currentSign) continue;
+
+        // 1. Cập nhật thẻ chữ tương ứng với từ STT hiện tại
+        const captionText = document.getElementById('signify-caption-text');
+        if (captionText) {
+          if (currentSign.animation && currentSign.animation.includes('dung-im')) {
+            captionText.textContent = "";
+          } else {
+            captionText.textContent = currentSign.word;
+          }
+        }
+
+        // 2. Chờ từ hiện tại phát XONG 100% (Promise chỉ resolve khi video ended)
+        await playSingleSignAnimationPromise(currentSign);
+
+        // 3. Khoảng nghỉ mượt (800ms) giữa từ trước và từ sau để tránh nuốt từ
+        if (animationQueue.length > 0 && translationEnabled) {
+          await new Promise(resolve => setTimeout(resolve, INTER_WORD_DELAY_MS));
+        }
+      }
+    } catch (e) {
+      console.warn('[Signify] Lỗi vòng lặp phát ký hiệu:', e);
+    } finally {
+      isRunnerProcessing = false;
+      isPlaying = false;
+
+      // Hết hàng đợi -> quay về video đứng yên trạng thái chờ (idle)
+      if (animationQueue.length === 0 && translationEnabled && !quotaBlocked) {
+        playIdleVideo();
+      }
     }
+  }
+
+  /**
+   * Đóng gói việc phát 1 clip ký hiệu thành Promise.
+   * Promise CHỈ RESOLVE khi video phát XONG 100% (sự kiện ended).
+   */
+  function playSingleSignAnimationPromise(currentSign) {
+    return new Promise((resolve) => {
+      const hasVideo = currentSign.animation && (
+        currentSign.animation.startsWith('chrome-extension:') ||
+        currentSign.animation.startsWith('data:') ||
+        currentSign.animation.startsWith('https://')
+      );
+      const srcUrl = hasVideo ? currentSign.animation : IDLE_VIDEO_URL;
+
+      let isDone = false;
+      const finish = () => {
+        if (!isDone) {
+          isDone = true;
+          resolve();
+        }
+      };
+
+      // Timeout an toàn tối đa 6 giây cho mỗi từ (tránh treo nếu video bị kẹt)
+      const safetyTimer = setTimeout(() => {
+        console.warn(`[Signify] Hết thời gian chờ an toàn cho từ: "${currentSign.word}"`);
+        finish();
+      }, 6000);
+
+      const onClipEnded = () => {
+        clearTimeout(safetyTimer);
+        finish();
+      };
+
+      if (srcUrl.startsWith('chrome-extension:') || srcUrl.startsWith('data:')) {
+        executeVideoPlayWithCallback(srcUrl, onClipEnded);
+        return;
+      }
+
+      resolveVideoUrl(srcUrl).then(validatedSrc => {
+        if (validatedSrc === IDLE_VIDEO_URL && srcUrl !== IDLE_VIDEO_URL) {
+          const captionText = document.getElementById('signify-caption-text');
+          if (captionText && captionText.textContent === currentSign.word) {
+            captionText.textContent = '';
+          }
+          clearTimeout(safetyTimer);
+          finish();
+        } else {
+          executeVideoPlayWithCallback(validatedSrc, onClipEnded);
+        }
+      }).catch(() => {
+        clearTimeout(safetyTimer);
+        finish();
+      });
+    });
+  }
+
+  function executeVideoPlayWithCallback(finalSrc, onEndedCallback) {
+    const activePlayer = getActiveVideoPlayer();
+    const standbyPlayer = getStandbyVideoPlayer();
+
+    if (!activePlayer) {
+      if (onEndedCallback) onEndedCallback();
+      return;
+    }
+
+    const attachEndedOnce = (player) => {
+      const handler = () => {
+        player.removeEventListener('ended', handler);
+        player.removeEventListener('error', errorHandler);
+        if (onEndedCallback) onEndedCallback();
+      };
+      const errorHandler = () => {
+        player.removeEventListener('ended', handler);
+        player.removeEventListener('error', errorHandler);
+        if (onEndedCallback) onEndedCallback();
+      };
+      player.addEventListener('ended', handler, { once: true });
+      player.addEventListener('error', errorHandler, { once: true });
+    };
+
+    if (!standbyPlayer) {
+      attachEndedOnce(activePlayer);
+      activePlayer.style.display = 'block';
+      activePlayer.loop = false;
+      activePlayer.removeAttribute('data-idle');
+      activePlayer.src = finalSrc;
+      activePlayer.load();
+      activePlayer.play().catch(() => {
+        if (onEndedCallback) onEndedCallback();
+      });
+      return;
+    }
+
+    // Smooth Dual-buffered swap
+    attachEndedOnce(standbyPlayer);
+    standbyPlayer.style.display = 'block';
+    standbyPlayer.removeAttribute('data-idle');
+    standbyPlayer.loop = false;
+    standbyPlayer.src = finalSrc;
+    standbyPlayer.load();
+
+    const doSwap = () => {
+      standbyPlayer.style.opacity = '1';
+      standbyPlayer.classList.add('signify-video-active');
+      standbyPlayer.classList.remove('signify-video-standby');
+
+      activePlayer.style.opacity = '0';
+      activePlayer.classList.remove('signify-video-active');
+      activePlayer.classList.add('signify-video-standby');
+
+      setTimeout(() => {
+        try { activePlayer.pause(); activePlayer.style.display = 'none'; } catch (e) {}
+      }, 150);
+
+      activePlayerIndex = 1 - activePlayerIndex;
+    };
+
+    standbyPlayer.play().then(() => {
+      doSwap();
+    }).catch(err => {
+      if (err && err.name !== 'AbortError') {
+        console.warn('[Signify] Dual-buffer play error, falling back:', err.message || err);
+      }
+      activePlayer.src = finalSrc;
+      activePlayer.load();
+      activePlayer.play().catch(() => {
+        if (onEndedCallback) onEndedCallback();
+      });
+    });
   }
 
   // 4. Send Subtitle Segment to Local Backend for Translation (AI-Backend-First with Local Fallback)
