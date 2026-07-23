@@ -38,6 +38,11 @@ public class User {
 
     String verificationToken;
 
+    @Indexed(sparse = true, name = "password_reset_token_hash_sparse")
+    String passwordResetTokenHash;
+
+    LocalDateTime passwordResetTokenExpiresAt;
+
     Boolean isVerified;
 
     String googleId;

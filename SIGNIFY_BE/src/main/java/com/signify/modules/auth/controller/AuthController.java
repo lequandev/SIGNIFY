@@ -2,11 +2,14 @@ package com.signify.modules.auth.controller;
 
 import com.signify.modules.auth.dto.AuthResponse;
 import com.signify.modules.auth.dto.GoogleLoginRequest;
+import com.signify.modules.auth.dto.ForgotPasswordRequest;
 import com.signify.modules.auth.dto.LoginRequest;
 import com.signify.modules.auth.dto.RegisterRequest;
+import com.signify.modules.auth.dto.ResetPasswordRequest;
 import com.signify.modules.auth.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
     private final AuthService authService;
@@ -49,6 +53,32 @@ public class AuthController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            boolean emailSent = authService.requestPasswordReset(request.getEmail());
+            if (!emailSent) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(Map.of("message", "No account is registered with this email address."));
+            }
+            return ResponseEntity.ok(Map.of("message", "Password reset email sent successfully."));
+        } catch (Exception exception) {
+            log.error("Unable to send password reset email", exception);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Unable to send the password reset email."));
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        boolean passwordReset = authService.resetPassword(request.getToken(), request.getNewPassword());
+        if (!passwordReset) {
+            return ResponseEntity.badRequest()
+                    .body(Map.of("message", "The password reset link is invalid or has expired."));
+        }
+        return ResponseEntity.ok(Map.of("message", "Password reset successfully."));
     }
 
     @PostMapping("/google-login")
