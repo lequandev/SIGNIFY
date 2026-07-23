@@ -37,7 +37,7 @@ public class DataSeeder implements CommandLineRunner {
         List<ServicePackage> defaults = Arrays.asList(
                 personalPackage(
                         "Gói Cá nhân - 1 tháng",
-                        "5,000",
+                        "49,000",
                         "tháng",
                         30,
                         "Truy cập đầy đủ Signify trong 1 tháng với 800 phút AI mỗi tháng.",
@@ -67,7 +67,7 @@ public class DataSeeder implements CommandLineRunner {
                 ),
                 educationPackage(
                         "Gói Giáo dục - 1 tháng",
-                        "2,000,000",
+                        "1,990,000",
                         "tháng",
                         30,
                         DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
@@ -78,7 +78,7 @@ public class DataSeeder implements CommandLineRunner {
                 ),
                 educationPackage(
                         "Gói Giáo dục - 6 tháng",
-                        "3,600,000",
+                        "9,990,000",
                         "6 tháng",
                         180,
                         DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
@@ -89,7 +89,7 @@ public class DataSeeder implements CommandLineRunner {
                 ),
                 educationPackage(
                         "Gói Giáo dục - 12 tháng",
-                        "6,900,000",
+                        "18,880,000",
                         "12 tháng",
                         365,
                         DEFAULT_EDUCATION_MONTHLY_AI_MINUTES,
