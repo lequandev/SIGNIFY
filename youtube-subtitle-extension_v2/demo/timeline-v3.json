@@ -4,7 +4,7 @@
     "lead": 0.3,
     "text": "Đường ơi, hết giờ học rồi, đi về đi",
     "clips": [
-      "demo/signs-v3/xin-chao.mov",
+      "demo/signs-v3/cam-on.mp4",
       "demo/signs-v3/di-hoc.mp4",
       "demo/signs-v3/ve-nha.mp4"
     ]
@@ -33,7 +33,7 @@
     "lead": 0.2,
     "text": "Đường ơi, cậu buồn vì hôm nay không đạt giải à?",
     "clips": [
-      "demo/signs-v3/xin-chao.mov",
+      "demo/signs-v3/cam-on.mp4",
       "demo/signs-v3/ly-do.mp4"
     ]
   },
@@ -59,7 +59,7 @@
       "demo/signs-v3/nhieu.mp4",
       "demo/signs-v3/khong.mp4",
       "demo/signs-v3/trach-mang.mp4",
-      "demo/signs-v3/ban-than-myself.mov"
+      "demo/signs-v3/toi.mp4"
     ]
   },
   {

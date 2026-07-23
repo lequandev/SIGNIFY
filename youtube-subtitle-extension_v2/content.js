@@ -159,11 +159,82 @@
   // Signify logo bundled with the extension (used in rail toggle + modal).
   const LOGO_URL = (chrome.runtime && chrome.runtime.getURL) ? chrome.runtime.getURL("icons/logo.png") : "";
 
+  // LOCAL_DEMO_SIGNS: video bundle sẵn trong extension (chỉ .mp4 — Chrome không chạy .mov).
+  // Ưu tiên local để tránh network request; từ không có local sẽ fallback sang Cloudinary/backend.
+  const LOCAL_DEMO_SIGNS = {
+    "ly do":        "demo/signs-v3/ly-do.mp4",
+    "khong":        "demo/signs-v3/khong.mp4",
+    "dat giai":     "demo/signs-v3/gioi.mp4",
+    "gioi":         "demo/signs-v3/gioi.mp4",
+    "cac ban":      "demo/signs-v3/cac-ban.mp4",
+    "ban":          "demo/signs-v3/cac-ban.mp4",
+    "tin tuong":    "demo/signs-v3/tin-tuong.mp4",
+    "ky vong":      "demo/signs-v3/tin-tuong.mp4",
+    "toi":          "demo/signs-v3/toi.mp4",
+    "to":           "demo/signs-v3/toi.mp4",
+    "co gang":      "demo/signs-v3/co-gang.mp4",
+    "cung":         "demo/signs-v3/cung-together.mp4",
+    "cam on":       "demo/signs-v3/cam-on.mp4",
+    "cam on ban":   "demo/signs-v3/cam-on.mp4",
+    "thanh cong":   "demo/signs-v3/gioi.mp4",
+    "dung im":      "demo/signs-v3/dung-im.mp4",
+    "bat":          "demo/signs-v3/bat.mp4",
+    "cham chi":     "demo/signs-v3/cham-chi.mp4",
+    "con cho":      "demo/signs-v3/con-cho.mp4",
+    "cho":          "demo/signs-v3/con-cho.mp4",
+    "con chuot":    "demo/signs-v3/con-chuot.mp4",
+    "chuot":        "demo/signs-v3/con-chuot.mp4",
+    "con ga":       "demo/signs-v3/con-ga.mp4",
+    "ga":           "demo/signs-v3/con-ga.mp4",
+    "con meo":      "demo/signs-v3/con-meo.mp4",
+    "meo":          "demo/signs-v3/con-meo.mp4",
+    "gay":          "demo/signs-v3/gay.mp4",
+    "nha":          "demo/signs-v3/nha.mp4",
+    "rat vui duoc gap": "demo/signs-v3/rat-vui-duoc-gap.mp4",
+    "that tuyet":   "demo/signs-v3/rat-vui-duoc-gap.mp4",
+    "rinh mo":      "demo/signs-v3/rinh-mo.mp4",
+    "trong coi":    "demo/signs-v3/trong-coi.mp4",
+    "tu hao":       "demo/signs-v3/tu-hao.mp4",
+    // Converted from .mov → .mp4 trong dev branch
+    // "xin chao" vẫn là .mov trên máy — chưa có .mp4, fallback sang backend
+    // "xin chao":     "demo/signs-v3/xin-chao.mp4",
+    // "chao":         "demo/signs-v3/xin-chao.mp4",
+    "di hoc":       "demo/signs-v3/di-hoc.mp4",
+    "ve nha":       "demo/signs-v3/ve-nha.mp4",
+    "di ve":        "demo/signs-v3/ve-nha.mp4",
+    "bo me":        "demo/signs-v3/bo-me.mp4",
+    "thay co":      "demo/signs-v3/thay-co.mp4",
+    "danh hieu":    "demo/signs-v3/danh-hieu.mp4",
+    "giai":         "demo/signs-v3/danh-hieu.mp4",
+    "co vua":       "demo/signs-v3/co-vua.mp4",
+    "dong vien":    "demo/signs-v3/dong-vien.mp4",
+    // "buon":      không có file nào trong bundle, fallback sang backend
+    "nhieu":        "demo/signs-v3/nhieu.mp4",
+    "trach mang":   "demo/signs-v3/trach-mang.mp4",
+    "tu trach":     "demo/signs-v3/trach-mang.mp4",
+    // "ban than":  ban-than-myself vẫn là .mov, fallback sang backend
+    "chung toi":    "demo/signs-v3/chung-toi.mp4",
+  };
+
   function mapWordToAnimation(word) {
+    if (!word) return null;
     const cleanWord = word.trim().replace(/^[.,?!\-"]+|[.,?!\-"]+$/g, "");
     if (!cleanWord || !isMeaningfulWord(cleanWord)) return null;
 
-    // Tên file luôn không dấu + chữ thường, nối bằng '-'.
+    // Nếu là URL đầy đủ (Cloudinary/HTTPS) thì pass-through trực tiếp.
+    if (cleanWord.startsWith('https://') || cleanWord.startsWith('http://')) {
+      if (!cleanWord.includes('localhost') && !cleanWord.includes('127.0.0.1')) {
+        return cleanWord;
+      }
+    }
+
+    // Ưu tiên tra bảng local (file bundle trong extension) — không có network delay.
+    const normKey = stripVietnameseAccents(cleanWord.toLowerCase()).replace(/[-_]/g, " ").trim();
+    if (chrome.runtime && chrome.runtime.getURL && LOCAL_DEMO_SIGNS[normKey]) {
+      return chrome.runtime.getURL(LOCAL_DEMO_SIGNS[normKey]);
+    }
+
+    // Fallback: build URL từ backend assets (Cloudinary hoặc server).
     const fileKey = stripVietnameseAccents(cleanWord.toLowerCase()).replace(/\s+/g, "-");
     return `${BACKEND_URL}/assets/animations/${fileKey}.mp4`;
   }
@@ -297,6 +368,38 @@
   let usageSessionId = null;
   let usageHeartbeatTimer = null;
   let quotaBlocked = false;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // REMOTE URL VALIDATION CACHE
+  // HEAD request có cache để tránh ERR_FILE_NOT_FOUND lặp lại.
+  // Cloudinary URL không tồn tại (404) → dùng IDLE thay vì load vào <video>.
+  // ═══════════════════════════════════════════════════════════════════
+  const urlExistenceCache = new Map();
+
+  function resolveVideoUrl(url) {
+    if (!url) return Promise.resolve(IDLE_VIDEO_URL);
+    if (url.startsWith('chrome-extension:') || url.startsWith('data:')) {
+      return Promise.resolve(url); // local bundle, luôn tin tưởng
+    }
+    if (url.startsWith('https://')) {
+      const cached = urlExistenceCache.get(url);
+      if (cached === true)  return Promise.resolve(url);
+      if (cached === false) return Promise.resolve(IDLE_VIDEO_URL);
+      return fetch(url, { method: 'HEAD', mode: 'cors' })
+        .then(res => {
+          const exists = res.status !== 404 && res.status !== 410;
+          urlExistenceCache.set(url, exists);
+          return exists ? url : IDLE_VIDEO_URL;
+        })
+        .catch(() => {
+          // CORS hoặc network error → thử load thật, nếu lỗi video.onerror xử lý
+          urlExistenceCache.set(url, true);
+          return url;
+        });
+    }
+    // URL không hợp lệ (relative path, v.v.) → idle
+    return Promise.resolve(IDLE_VIDEO_URL);
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // TRANSLATION ENABLE GATE
@@ -1016,7 +1119,10 @@
     const videoPlayer = document.getElementById('signify-video-player');
     videoPlayer.addEventListener('ended', playNextAnimation);
     videoPlayer.addEventListener('error', (e) => {
-      console.warn("Video lỗi, bỏ qua sang clip kế tiếp:", e);
+      const badSrc = videoPlayer.currentSrc || videoPlayer.src || '';
+      if (badSrc && !badSrc.includes('dung-im')) {
+        console.warn('[Signify] Video không tải được, chuyển sang kế tiếp:', badSrc);
+      }
       handlePlaybackError();
     });
 
@@ -1053,10 +1159,14 @@
     videoPlayer.play().catch(() => { });
   }
 
-  // Khi clip lỗi: bỏ qua, sang clip kế tiếp (không hiện thẻ chữ).
+  // Khi clip lỗi: sang clip kế tiếp mượt mà (50ms). Nếu queue rỗng → phát idle.
   function handlePlaybackError() {
     clearTimeout(animationTimeout);
-    animationTimeout = setTimeout(playNextAnimation, 300);
+    if (animationQueue.length > 0) {
+      animationTimeout = setTimeout(playNextAnimation, 50);
+    } else {
+      playIdleVideo();
+    }
   }
 
   // 2. Queue Manager to Play Animations Sequentially
@@ -1085,25 +1195,49 @@
       }
     }
 
-    // Từ nào không có clip riêng -> dùng luôn video đứng yên.
+    // Chỉ dùng animation URL nếu là URL hợp lệ (chrome-extension, data, https).
+    // Loại bỏ relative paths / unknown schemes để tránh ERR_FILE_NOT_FOUND.
     const hasVideo = currentSign.animation && (
+      currentSign.animation.startsWith('chrome-extension:') ||
       currentSign.animation.startsWith('data:') ||
-      currentSign.animation.includes('.mp4')
+      currentSign.animation.startsWith('https://')
     );
     const srcUrl = hasVideo ? currentSign.animation : IDLE_VIDEO_URL;
 
-    if (videoPlayer) {
+    function executeVideoPlay(finalSrc) {
+      if (!videoPlayer) return;
       videoPlayer.style.display = 'block';
       videoPlayer.loop = false;
-      videoPlayer.removeAttribute('data-idle'); // đây là clip nội dung, không phải idle
-      videoPlayer.src = srcUrl;
+      videoPlayer.removeAttribute('data-idle');
+      videoPlayer.src = finalSrc;
       videoPlayer.load();
-
       videoPlayer.play().catch(err => {
-        console.warn("Autoplay bị chặn/gián đoạn, bỏ qua clip:", err);
-        animationTimeout = setTimeout(playNextAnimation, 300);
+        if (err && err.name !== 'AbortError') {
+          console.warn('[Signify] Không thể phát clip:', err.message || err);
+        }
+        animationTimeout = setTimeout(playNextAnimation, 50);
       });
     }
+
+    // chrome-extension:// URLs (local bundle) → load trực tiếp, không cần validate
+    if (srcUrl.startsWith('chrome-extension:') || srcUrl.startsWith('data:')) {
+      executeVideoPlay(srcUrl);
+      return;
+    }
+
+    // HTTPS (Cloudinary / backend): validate bằng HEAD trước (cache) để tránh ERR_FILE_NOT_FOUND
+    resolveVideoUrl(srcUrl).then(validatedSrc => {
+      if (validatedSrc === IDLE_VIDEO_URL && srcUrl !== IDLE_VIDEO_URL) {
+        // URL không tồn tại → bỏ qua từ này, sang từ tiếp theo
+        const captionText = document.getElementById('signify-caption-text');
+        if (captionText && captionText.textContent === currentSign.word) {
+          captionText.textContent = '';
+        }
+        animationTimeout = setTimeout(playNextAnimation, 50);
+      } else {
+        executeVideoPlay(validatedSrc);
+      }
+    });
   }
 
   // 3. Play Segment-Specific Sign Language Sequences
@@ -1149,7 +1283,17 @@
       requestData: requestData
     }, (response) => {
       if (response && response.success && response.data && response.data.length > 0) {
-        segment.translatedSignData = response.data;
+        // Resolve animation URL: ưu tiên local, fallback Cloudinary/backend
+        segment.translatedSignData = response.data.map(item => ({
+          ...item,
+          animation: mapWordToAnimation(item.animation || item.word) || item.animation || null
+        }));
+        // Pre-warm URL cache cho segment này (on-demand)
+        segment.translatedSignData.forEach(item => {
+          if (item.animation && item.animation.startsWith('https://')) {
+            resolveVideoUrl(item.animation);
+          }
+        });
         if (lastActiveSegment === segment) {
           renderSignCaptionText(segment.translatedSignData, segment.text);
           playSegmentSignData(segment.translatedSignData);
@@ -1596,7 +1740,18 @@
           if (response && response.success && response.data && response.data.length > 0) {
             const receivedWords = response.data.map(item => item.word).join(', ');
             console.log(`🎯 Backend AI translation successful (API mode). Input: "${seg.text}" -> Output words: [${receivedWords}]`);
-            seg.translatedSignData = response.data;
+            // Resolve animation URL: ưu tiên local demo, fallback Cloudinary URL từ backend
+            seg.translatedSignData = response.data.map(item => ({
+              ...item,
+              animation: mapWordToAnimation(item.animation || item.word) || item.animation || null
+            }));
+            // Pre-warm URL cache ngay lập tức (fire-and-forget):
+            // khi timeline đến segment này, HEAD request đã xong → playNextAnimation không cần chờ
+            seg.translatedSignData.forEach(item => {
+              if (item.animation && item.animation.startsWith('https://')) {
+                resolveVideoUrl(item.animation);
+              }
+            });
           } else {
             seg.translatedSignData = processSubtitleLocally(seg.text);
           }
@@ -1932,7 +2087,7 @@
 
           const cachedSignDataList = [];
           for (const word of words) {
-            const animationUrl = mapWordToAnimation(word) || `${BACKEND_URL}/assets/animations/${stripVietnameseAccents(word.toLowerCase()).replace(/\s+/g, "-")}.mp4`;
+            const animationUrl = mapWordToAnimation(word);
             cachedSignDataList.push({
               word: word,
               animation: animationUrl
